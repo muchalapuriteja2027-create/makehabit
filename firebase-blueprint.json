@@ -1,0 +1,183 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with preference settings and account metadata",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name",
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "description": "User email address",
+          "maxLength": 150
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Profile picture URL",
+          "maxLength": 500
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of account creation"
+        },
+        "lastLoginAt": {
+          "type": "string",
+          "description": "ISO timestamp of last login"
+        },
+        "dailyTarget": {
+          "type": "number",
+          "description": "Target number of habit stacks per day"
+        },
+        "soundEffects": {
+          "type": "boolean",
+          "description": "Whether sound and celebration effects are enabled"
+        },
+        "streakShieldAvailable": {
+          "type": "number",
+          "description": "Number of available streak shields"
+        },
+        "xp": {
+          "type": "number",
+          "description": "Gamification momentum experience points"
+        },
+        "level": {
+          "type": "number",
+          "description": "Habit mastery level"
+        }
+      },
+      "required": ["userId", "email"]
+    },
+    "Habit": {
+      "title": "Habit",
+      "description": "Habit stack definition based on anchor and target action",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique habit ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Routine title (e.g. Morning Routine)",
+          "maxLength": 120
+        },
+        "anchor": {
+          "type": "string",
+          "description": "Anchor routine trigger ('After I...')",
+          "maxLength": 200
+        },
+        "action": {
+          "type": "string",
+          "description": "Target habit action ('Then I will...')",
+          "maxLength": 200
+        },
+        "category": {
+          "type": "string",
+          "description": "Habit pillar category (Reading, Fitness, Learning, Mindfulness, Productivity)",
+          "maxLength": 50
+        },
+        "frequency": {
+          "type": "string",
+          "description": "Repeat cadence: daily, weekdays, or custom",
+          "enum": ["daily", "weekdays", "custom"]
+        },
+        "daysOfWeek": {
+          "type": "string",
+          "description": "Active days of the week encoded as comma-separated digits 0-6",
+          "maxLength": 30
+        },
+        "durationMinutes": {
+          "type": "number",
+          "description": "Estimated duration in minutes"
+        },
+        "scheduledTime": {
+          "type": "string",
+          "description": "Scheduled anchor time string (e.g. 07:30 AM)",
+          "maxLength": 20
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of habit stack: active or paused",
+          "enum": ["active", "paused"]
+        },
+        "pausedReason": {
+          "type": "string",
+          "description": "Optional reason when paused",
+          "maxLength": 150
+        },
+        "order": {
+          "type": "number",
+          "description": "Order sequence of routine on the dashboard"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of creation"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last update"
+        }
+      },
+      "required": ["id", "userId", "anchor", "action", "status"]
+    },
+    "Completion": {
+      "title": "Completion",
+      "description": "Daily habit execution record",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Format: {date}_{habitId}"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID"
+        },
+        "habitId": {
+          "type": "string",
+          "description": "ID of the completed habit"
+        },
+        "date": {
+          "type": "string",
+          "description": "Date formatted as YYYY-MM-DD",
+          "maxLength": 10
+        },
+        "completed": {
+          "type": "boolean",
+          "description": "Completion state flag"
+        },
+        "completedAt": {
+          "type": "string",
+          "description": "ISO timestamp of completion log"
+        }
+      },
+      "required": ["id", "userId", "habitId", "date", "completed"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Private user profile document"
+    },
+    "/users/{userId}/habits/{habitId}": {
+      "schema": "Habit",
+      "description": "Habit stacks belonging strictly to the user"
+    },
+    "/users/{userId}/completions/{completionId}": {
+      "schema": "Completion",
+      "description": "Daily completion logs strictly belonging to the user"
+    }
+  }
+}

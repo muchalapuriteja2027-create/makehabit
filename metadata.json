@@ -1,0 +1,6 @@
+{
+  "name": "MakeHabit",
+  "description": "Tactile habit stacking and daily momentum tracker with Google Authentication and Cloud Firestore sync.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

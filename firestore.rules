@@ -1,0 +1,72 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    // Test connection endpoint for initial validation
+    match /test/{docId} {
+      allow read: if true;
+    }
+
+    // User profile document (PII isolation: readable & writable only by the account owner)
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false; // Disallow querying all users
+      allow create: if isOwner(userId) 
+                    && incoming().userId == request.auth.uid;
+      allow update: if isOwner(userId) 
+                    && incoming().userId == request.auth.uid;
+      allow delete: if isOwner(userId);
+
+      // Habits subcollection strictly scoped to owner
+      match /habits/{habitId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) 
+                      && isValidId(habitId) 
+                      && incoming().userId == request.auth.uid
+                      && incoming().anchor is string 
+                      && incoming().anchor.size() <= 200
+                      && incoming().action is string 
+                      && incoming().action.size() <= 200;
+        allow update: if isOwner(userId) 
+                      && isValidId(habitId) 
+                      && incoming().userId == request.auth.uid;
+        allow delete: if isOwner(userId) && isValidId(habitId);
+      }
+
+      // Completions subcollection strictly scoped to owner
+      match /completions/{completionId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) 
+                      && isValidId(completionId) 
+                      && incoming().userId == request.auth.uid
+                      && incoming().date is string 
+                      && incoming().date.size() <= 10;
+        allow update: if isOwner(userId) 
+                      && isValidId(completionId) 
+                      && incoming().userId == request.auth.uid;
+        allow delete: if isOwner(userId) && isValidId(completionId);
+      }
+    }
+  }
+}
