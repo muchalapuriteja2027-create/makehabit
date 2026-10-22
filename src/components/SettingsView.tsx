@@ -1,12 +1,23 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext.tsx';
+import { ViewMode, TrustDocType } from '../types.ts';
 import { HabitBuddy } from './HabitBuddy.tsx';
 
-export const SettingsView: React.FC = () => {
+interface SettingsViewProps {
+  onNavigate?: (view: ViewMode) => void;
+  onOpenTrustModal?: (tab: TrustDocType) => void;
+}
+
+export const SettingsView: React.FC<SettingsViewProps> = ({
+  onNavigate,
+  onOpenTrustModal,
+}) => {
   const { currentUser, userProfile, updatePreferences, signOutUser } = useAuth();
 
   const dailyTarget = userProfile?.dailyTarget || 3;
   const soundEffects = userProfile?.soundEffects !== false;
+  const currentPlan = userProfile?.plan === 'premium' ? 'MakeHabit Premium' : 'Free Plan';
+  const isPremium = userProfile?.plan === 'premium';
 
   const handleSliderChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseInt(e.target.value, 10);
@@ -29,7 +40,7 @@ export const SettingsView: React.FC = () => {
           Settings
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-0.5 font-medium">
-          Manage your daily target, celebratory sound and feedback, and profile.
+          Manage your membership plan, habit targets, legal policies, and profile.
         </p>
       </div>
 
@@ -61,6 +72,48 @@ export const SettingsView: React.FC = () => {
             </div>
           </div>
           <HabitBuddy mood="happy" size="sm" className="hidden sm:inline-flex" />
+        </div>
+      </section>
+
+      {/* Membership Plan Section */}
+      <section className="bg-white rounded-3xl p-6 sm:p-7 border border-[#F0E6DA] tactile-card space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-black text-[#152238]">Membership Plan</h2>
+            <p className="text-xs text-slate-500 font-medium">Your current tier and available habit allocations.</p>
+          </div>
+          <span className={`px-3 py-1 rounded-full text-xs font-black ${
+            isPremium
+              ? 'bg-[#EAF7D5] border border-[#B8E36A] text-[#1E3805]'
+              : 'bg-[#FFF1EE] text-[#FF704F] border border-[#FF704F]/30'
+          }`}>
+            {currentPlan}
+          </span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-[#FFF8F0] border border-[#F0E6DA] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="text-sm font-black text-[#152238] flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px] text-[#FF704F]">
+                {isPremium ? 'verified' : 'inventory_2'}
+              </span>
+              <span>{isPremium ? 'Premium Lifetime Access' : 'Free Starter Plan'}</span>
+            </div>
+            <p className="text-xs text-slate-600 font-medium">
+              {isPremium
+                ? 'Unlimited active habits, 90-day retention reports, and consistency heatmaps.'
+                : 'Up to 3 active habit stacks with daily check-ins and weekly streak tracking.'}
+            </p>
+          </div>
+
+          {onNavigate && (
+            <button
+              onClick={() => onNavigate('pricing')}
+              className="px-5 py-2.5 rounded-2xl tactile-coral text-white text-xs font-black shrink-0 whitespace-nowrap cursor-pointer shadow-xs"
+            >
+              {isPremium ? 'View Plan Details' : 'Upgrade — ₹199'}
+            </button>
+          )}
         </div>
       </section>
 
@@ -132,6 +185,54 @@ export const SettingsView: React.FC = () => {
                 soundEffects ? 'translate-x-5' : 'translate-x-0'
               }`}
             />
+          </button>
+        </div>
+      </section>
+
+      {/* Trust, Legal & Support Section */}
+      <section className="bg-white rounded-3xl p-6 sm:p-7 border border-[#F0E6DA] tactile-card space-y-4">
+        <div>
+          <h2 className="text-base font-black text-[#152238]">Trust & Policies</h2>
+          <p className="text-xs text-slate-500 font-medium">
+            Learn about your data privacy, terms, upcoming refund policy, and support channels.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <button
+            onClick={() => onOpenTrustModal?.('privacy')}
+            className="p-3 rounded-2xl bg-[#FFF8F0] border border-[#F0E6DA] hover:border-[#FF704F]/50 text-left transition-colors cursor-pointer space-y-1"
+          >
+            <span className="material-symbols-outlined text-[18px] text-[#1E3805]">lock</span>
+            <div className="text-xs font-black text-[#152238]">Privacy Policy</div>
+            <p className="text-[10px] text-slate-500 font-medium">Your data stays yours</p>
+          </button>
+
+          <button
+            onClick={() => onOpenTrustModal?.('terms')}
+            className="p-3 rounded-2xl bg-[#FFF8F0] border border-[#F0E6DA] hover:border-[#FF704F]/50 text-left transition-colors cursor-pointer space-y-1"
+          >
+            <span className="material-symbols-outlined text-[18px] text-blue-600">gavel</span>
+            <div className="text-xs font-black text-[#152238]">Terms of Service</div>
+            <p className="text-[10px] text-slate-500 font-medium">Fair usage guidelines</p>
+          </button>
+
+          <button
+            onClick={() => onOpenTrustModal?.('refund')}
+            className="p-3 rounded-2xl bg-[#FFF8F0] border border-[#F0E6DA] hover:border-[#FF704F]/50 text-left transition-colors cursor-pointer space-y-1"
+          >
+            <span className="material-symbols-outlined text-[18px] text-[#FF704F]">currency_rupee</span>
+            <div className="text-xs font-black text-[#152238]">Refund Policy</div>
+            <p className="text-[10px] text-slate-500 font-medium">Policy details</p>
+          </button>
+
+          <button
+            onClick={() => onOpenTrustModal?.('contact')}
+            className="p-3 rounded-2xl bg-[#FFF8F0] border border-[#F0E6DA] hover:border-[#FF704F]/50 text-left transition-colors cursor-pointer space-y-1"
+          >
+            <span className="material-symbols-outlined text-[18px] text-purple-600">support_agent</span>
+            <div className="text-xs font-black text-[#152238]">Contact Support</div>
+            <p className="text-[10px] text-slate-500 font-medium">Support details coming soon</p>
           </button>
         </div>
       </section>

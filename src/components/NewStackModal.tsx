@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useHabits } from '../context/HabitsContext.tsx';
+import { useAuth } from '../context/AuthContext.tsx';
 import {
   HabitStack,
   HabitCategory,
@@ -15,6 +16,7 @@ interface NewStackModalProps {
   isOpen: boolean;
   onClose: () => void;
   habitToEdit?: HabitStack | null;
+  onNavigateToPricing?: () => void;
 }
 
 const POPULAR_ANCHORS = [
@@ -38,8 +40,10 @@ export const NewStackModal: React.FC<NewStackModalProps> = ({
   isOpen,
   onClose,
   habitToEdit,
+  onNavigateToPricing,
 }) => {
-  const { addHabit, updateHabit } = useHabits();
+  const { habits, addHabit, updateHabit } = useHabits();
+  const { userProfile } = useAuth();
 
   const [anchor, setAnchor] = useState('my morning tea ☕');
   const [action, setAction] = useState('read for 15 minutes 📚');
@@ -49,6 +53,11 @@ export const NewStackModal: React.FC<NewStackModalProps> = ({
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Free plan limit: up to 3 active habits
+  const isPremium = userProfile?.plan === 'premium';
+  const activeHabitsCount = habits.filter((h) => h.status === 'active').length;
+  const isLimitReached = !isPremium && !habitToEdit && activeHabitsCount >= 3;
 
   useEffect(() => {
     if (habitToEdit) {
@@ -66,6 +75,7 @@ export const NewStackModal: React.FC<NewStackModalProps> = ({
       setFrequency('daily');
       setDaysOfWeek([0, 1, 2, 3, 4, 5, 6]);
     }
+    setErrorMsg(null);
   }, [habitToEdit, isOpen]);
 
   if (!isOpen) return null;
@@ -97,6 +107,13 @@ export const NewStackModal: React.FC<NewStackModalProps> = ({
 
     if (!cleanAnchor.trim() || !cleanAction.trim()) {
       setErrorMsg('Please specify both an existing routine and your new habit.');
+      return;
+    }
+
+    if (isLimitReached) {
+      setErrorMsg(
+        'You have reached the 3 active habits limit on the Free Plan. Upgrade to MakeHabit Premium (₹199 one-time) for unlimited habits, or pause an existing routine.'
+      );
       return;
     }
 
@@ -148,17 +165,20 @@ export const NewStackModal: React.FC<NewStackModalProps> = ({
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#152238]/60 backdrop-blur-xs p-4 overflow-y-auto animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-[#152238]/70 backdrop-blur-xs overflow-hidden animate-fadeIn"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
     >
-      <div className="bg-white rounded-3xl max-w-[600px] w-full p-6 sm:p-8 shadow-2xl border border-[#F0E6DA] my-8 space-y-6 tactile-card-modal">
-        {/* Modal Header */}
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
+      <div className="bg-white rounded-3xl max-w-[620px] w-full max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2.5rem)] flex flex-col shadow-2xl border border-[#F0E6DA] tactile-card-modal overflow-hidden my-auto">
+        {/* Modal Header — FIXED at top, NEVER cut off */}
+        <div className="shrink-0 bg-white border-b border-[#F0E6DA] px-6 py-4.5 sm:px-8 sm:py-5 flex items-start justify-between z-10">
+          <div className="space-y-1 pr-3">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FFF1EE] text-[#FF704F] text-xs font-black">
               <span className="material-symbols-outlined text-[16px]">link</span>
               <span>Habit Stacking</span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black text-[#152238] tracking-tight">
+            <h2 id="modal-title" className="text-xl sm:text-2xl font-black text-[#152238] tracking-tight">
               {habitToEdit ? 'Edit Habit Stack' : 'Create a Habit Stack'}
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 font-medium">
@@ -167,19 +187,53 @@ export const NewStackModal: React.FC<NewStackModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full text-slate-400 hover:text-[#152238] hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
+            aria-label="Close modal"
+            className="w-9 h-9 rounded-full text-slate-400 hover:text-[#152238] hover:bg-[#F5EFE6] flex items-center justify-center transition-colors cursor-pointer shrink-0"
           >
             <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
         </div>
 
-        {errorMsg && (
-          <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-2xl text-xs font-bold">
-            {errorMsg}
-          </div>
-        )}
+        {/* Scrollable Form Body — Scrolls internally if content is too tall */}
+        <form
+          id="habit-stack-form"
+          onSubmit={handleSubmit}
+          className="flex-1 overflow-y-auto px-6 py-5 sm:px-8 sm:py-6 space-y-5 scrollbar-thin"
+        >
+          {errorMsg && (
+            <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 rounded-2xl text-xs font-bold flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px] shrink-0">error</span>
+              <span>{errorMsg}</span>
+            </div>
+          )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Free Plan Limit Notice if at capacity */}
+          {isLimitReached && (
+            <div className="p-4 rounded-2xl bg-[#FFF8F0] border border-[#FF704F]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <span className="text-xs font-black text-[#FF704F] flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px]">info</span>
+                  <span>Free Plan Limit Reached (3/3 Active Habits)</span>
+                </span>
+                <p className="text-xs text-slate-600 font-medium leading-relaxed">
+                  You have 3 active habit stacks. Upgrade to MakeHabit Premium for unlimited habits, or pause an existing one.
+                </p>
+              </div>
+              {onNavigateToPricing && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onNavigateToPricing();
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl tactile-coral text-xs font-black shrink-0 whitespace-nowrap cursor-pointer shadow-xs"
+                >
+                  View Premium
+                </button>
+              )}
+            </div>
+          )}
+
           {/* STEP 1: Existing Routine (Anchor) */}
           <div className="space-y-2">
             <label htmlFor="anchor-input" className="text-sm font-black text-[#152238] flex items-center gap-2">
@@ -391,33 +445,40 @@ export const NewStackModal: React.FC<NewStackModalProps> = ({
               “{livePreviewSentence}”
             </div>
           </div>
-
-          {/* Submit & Cancel Buttons */}
-          <div className="flex items-center justify-end gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="px-5 py-2.5 rounded-full text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-7 py-3 rounded-2xl tactile-coral text-xs sm:text-sm font-black shadow-md transition-all flex items-center gap-2 cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[18px]">check</span>
-              <span>
-                {isSubmitting
-                  ? 'Saving…'
-                  : habitToEdit
-                  ? 'Save Changes'
-                  : 'Create Habit'}
-              </span>
-            </button>
-          </div>
         </form>
+
+        {/* Modal Footer — FIXED at bottom, ALWAYS accessible */}
+        <div className="shrink-0 bg-white border-t border-[#F0E6DA] px-6 py-4 sm:px-8 sm:py-4 flex items-center justify-end gap-3 z-10">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="px-5 py-2.5 rounded-full text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="habit-stack-form"
+            disabled={isSubmitting || (isLimitReached && !habitToEdit)}
+            className={`px-7 py-3 rounded-2xl text-xs sm:text-sm font-black shadow-md transition-all flex items-center gap-2 cursor-pointer ${
+              isLimitReached && !habitToEdit
+                ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                : 'tactile-coral text-white'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[18px]">check</span>
+            <span>
+              {isSubmitting
+                ? 'Saving…'
+                : habitToEdit
+                ? 'Save Changes'
+                : isLimitReached
+                ? 'Plan Limit (3/3)'
+                : 'Create Habit'}
+            </span>
+          </button>
+        </div>
       </div>
     </div>
   );

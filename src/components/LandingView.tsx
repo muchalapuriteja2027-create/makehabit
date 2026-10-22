@@ -3,7 +3,17 @@ import { useAuth } from '../context/AuthContext.tsx';
 import { CategoryBadge } from './CategoryBadge.tsx';
 import { HabitBuddy } from './HabitBuddy.tsx';
 
-export const LandingView: React.FC = () => {
+import { TrustDocType } from '../types.ts';
+
+interface LandingViewProps {
+  onOpenTrustModal?: (tab: TrustDocType) => void;
+  onViewPricing?: () => void;
+}
+
+export const LandingView: React.FC<LandingViewProps> = ({
+  onOpenTrustModal: _onOpenTrustModal,
+  onViewPricing,
+}) => {
   const { signIn, loading } = useAuth();
   const [heroHabitDone, setHeroHabitDone] = useState(false);
   const [activeRoutineTab, setActiveRoutineTab] = useState<'morning' | 'evening'>('morning');
@@ -77,11 +87,20 @@ export const LandingView: React.FC = () => {
                 href="#interactive-demo"
                 className="w-full sm:w-auto px-6 py-4 rounded-2xl bg-white hover:bg-[#FFF8F0] text-[#152238] border border-[#F0E6DA] text-sm font-black flex items-center justify-center gap-2 shadow-2xs transition-colors"
               >
-                <span>Try Interactive Demo</span>
+                <span>Try Demo</span>
                 <span className="material-symbols-outlined text-slate-400 text-[18px]">
                   arrow_downward
                 </span>
               </a>
+              {onViewPricing && (
+                <button
+                  onClick={onViewPricing}
+                  className="w-full sm:w-auto px-6 py-4 rounded-2xl bg-[#FFF1EE] hover:bg-[#FFEADB] text-[#FF704F] border border-[#FF704F]/30 text-sm font-black flex items-center justify-center gap-2 shadow-2xs transition-colors cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">sell</span>
+                  <span>Plans (₹199 Lifetime)</span>
+                </button>
+              )}
             </div>
           </div>
 

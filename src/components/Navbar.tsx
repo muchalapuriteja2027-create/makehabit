@@ -86,6 +86,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
 
               <button
+                onClick={() => onNavigate('pricing')}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-bold transition-all cursor-pointer ${
+                  currentView === 'pricing'
+                    ? 'bg-[#FFF1EE] text-[#FF704F]'
+                    : 'text-slate-600 hover:text-[#152238] hover:bg-[#F9F4EE]'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[18px]">sell</span>
+                <span>Pricing</span>
+              </button>
+
+              <button
                 onClick={() => onNavigate('settings')}
                 className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-bold transition-all cursor-pointer ${
                   currentView === 'settings'
@@ -174,15 +186,15 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Mobile Bottom Navigation Bar (Fixed for thumb reachability on mobile) */}
       {currentUser && (
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-[#F0E6DA] py-1.5 px-3 shadow-lg">
-          <div className="grid grid-cols-4 max-w-md mx-auto items-center">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-[#F0E6DA] py-1.5 px-2 shadow-lg">
+          <div className="grid grid-cols-5 max-w-md mx-auto items-center">
             <button
               onClick={() => onNavigate('home')}
               className={`flex flex-col items-center justify-center py-1 transition-colors ${
                 currentView === 'home' ? 'text-[#FF704F]' : 'text-slate-400 hover:text-slate-700'
               }`}
             >
-              <span className="material-symbols-outlined text-[22px]">home</span>
+              <span className="material-symbols-outlined text-[20px]">home</span>
               <span className="text-[10px] font-bold">Home</span>
             </button>
 
@@ -192,7 +204,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 currentView === 'habits' ? 'text-[#FF704F]' : 'text-slate-400 hover:text-slate-700'
               }`}
             >
-              <span className="material-symbols-outlined text-[22px]">checklist</span>
+              <span className="material-symbols-outlined text-[20px]">checklist</span>
               <span className="text-[10px] font-bold">Habits</span>
             </button>
 
@@ -202,8 +214,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                 currentView === 'progress' ? 'text-[#FF704F]' : 'text-slate-400 hover:text-slate-700'
               }`}
             >
-              <span className="material-symbols-outlined text-[22px]">trending_up</span>
+              <span className="material-symbols-outlined text-[20px]">trending_up</span>
               <span className="text-[10px] font-bold">Progress</span>
+            </button>
+
+            <button
+              onClick={() => onNavigate('pricing')}
+              className={`flex flex-col items-center justify-center py-1 transition-colors ${
+                currentView === 'pricing' ? 'text-[#FF704F]' : 'text-slate-400 hover:text-slate-700'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[20px]">sell</span>
+              <span className="text-[10px] font-bold">Pricing</span>
             </button>
 
             <button
@@ -212,7 +234,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 currentView === 'settings' ? 'text-[#FF704F]' : 'text-slate-400 hover:text-slate-700'
               }`}
             >
-              <span className="material-symbols-outlined text-[22px]">settings</span>
+              <span className="material-symbols-outlined text-[20px]">settings</span>
               <span className="text-[10px] font-bold">Settings</span>
             </button>
           </div>

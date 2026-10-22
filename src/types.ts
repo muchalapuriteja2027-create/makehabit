@@ -1,4 +1,8 @@
-export type ViewMode = 'home' | 'habits' | 'progress' | 'settings';
+export type ViewMode = 'home' | 'habits' | 'progress' | 'pricing' | 'settings';
+
+export type PlanType = 'free' | 'premium';
+
+export type TrustDocType = 'privacy' | 'terms' | 'refund' | 'contact';
 
 export type HabitCategory = 'Health' | 'Work' | 'Personal' | 'Uncategorized';
 
@@ -168,6 +172,7 @@ export interface UserProfile {
   lastLoginAt: string;
   dailyTarget: number;
   soundEffects: boolean;
+  plan?: PlanType;
 }
 
 export interface DayStreakStatus {
