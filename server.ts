@@ -1,16 +1,44 @@
 import express, { Request, Response } from 'express';
 import crypto from 'crypto';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Render Backend CORS Configuration
+app.use((req: Request, res: Response, next) => {
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'https://makehabit.me',
+    'https://www.makehabit.me',
+    'http://localhost:3000',
+    'http://localhost:5173',
+  ];
+
+  const isAllowed =
+    !origin ||
+    allowedOrigins.includes(origin) ||
+    origin.endsWith('.onrender.com') ||
+    origin.endsWith('.run.app');
+
+  if (isAllowed && origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else if (!origin) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(204);
+    return;
+  }
+  next();
+});
 
 app.use(express.json());
 
@@ -22,8 +50,29 @@ const getRazorpayCredentials = () => {
 };
 
 /**
- * Health check & Razorpay configuration status
- * Never returns the secret key to clients.
+ * Health check endpoint for Render and uptime monitoring
+ */
+app.get('/health', (_req: Request, res: Response) => {
+  res.status(200).json({
+    status: 'ok',
+    service: 'makehabit-api',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
+ * Root endpoint
+ */
+app.get('/', (_req: Request, res: Response) => {
+  res.status(200).json({
+    name: 'MakeHabit Razorpay API',
+    status: 'online',
+    health: '/health',
+  });
+});
+
+/**
+ * Razorpay configuration status (Public Key ID preview only; secret NEVER returned)
  */
 app.get('/api/razorpay/status', (_req: Request, res: Response) => {
   const { keyId, keySecret } = getRazorpayCredentials();
@@ -50,7 +99,7 @@ app.post('/api/razorpay/create-order', async (req: Request, res: Response) => {
         success: false,
         isConfigured: false,
         error:
-          'Razorpay Test Mode credentials are not yet configured on the server. Set VITE_RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to test payments.',
+          'Razorpay Test Mode credentials are not yet configured on the Render backend. Set VITE_RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in Render Environment Variables.',
       });
       return;
     }
@@ -162,33 +211,14 @@ app.post('/api/razorpay/verify-payment', (req: Request, res: Response) => {
   }
 });
 
-// Setup Vite middleware in dev or static files in production
-async function startServer() {
-  const isProduction = process.env.NODE_ENV === 'production';
+// 404 handler for unknown routes
+app.use((_req: Request, res: Response) => {
+  res.status(404).json({ error: 'Endpoint not found' });
+});
 
-  if (!isProduction) {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.resolve(__dirname, 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (_req: Request, res: Response) => {
-      res.sendFile(path.resolve(distPath, 'index.html'));
-    });
-  }
-
-  app.listen(PORT, () => {
-    console.log(`MakeHabit server running on http://localhost:${PORT}`);
-  });
-}
-
-// Only start when invoked directly
-if (process.env.NODE_ENV !== 'test') {
-  startServer();
-}
+// Start listening directly on PORT
+app.listen(PORT, () => {
+  console.log(`MakeHabit API server running on port ${PORT}`);
+});
 
 export default app;

@@ -3,7 +3,7 @@
  * 
  * Secure client-side wrapper for Razorpay standard checkout.
  * NOTE: The Razorpay Key Secret is NEVER stored, referenced, or exposed in frontend code.
- * Order creation and HMAC payment verification are performed securely on the server backend.
+ * Order creation and HMAC payment verification are performed securely on the Render backend.
  */
 
 export interface RazorpayOrderResponse {
@@ -27,6 +27,15 @@ export interface VerifyPaymentResponse {
   verified?: boolean;
   error?: string;
 }
+
+/**
+ * Returns the Render backend API base URL
+ */
+export const getBackendBaseUrl = (): string => {
+  const envUrl = import.meta.env.VITE_BACKEND_URL as string | undefined;
+  const baseUrl = envUrl || 'https://makehabit-twbz.onrender.com';
+  return baseUrl.replace(/\/+$/, '');
+};
 
 /**
  * Dynamically loads the official Razorpay Checkout v1 script
@@ -60,14 +69,26 @@ export const getClientRazorpayKey = (): string => {
 };
 
 /**
- * Calls backend to create a ₹199 Razorpay order in test mode
+ * Checks connectivity to the Render backend /health endpoint
+ */
+export const checkBackendHealth = async (): Promise<boolean> => {
+  try {
+    const res = await fetch(`${getBackendBaseUrl()}/health`, { method: 'GET' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Calls Render backend to create a ₹199 Razorpay order in test mode
  */
 export const requestCreateOrder = async (
   userId: string,
   userEmail?: string
 ): Promise<RazorpayOrderResponse> => {
   try {
-    const res = await fetch('/api/razorpay/create-order', {
+    const res = await fetch(`${getBackendBaseUrl()}/api/razorpay/create-order`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, userEmail, plan: 'premium_lifetime', amountInRupees: 199 }),
@@ -78,30 +99,30 @@ export const requestCreateOrder = async (
       return {
         success: false,
         isConfigured: false,
-        error: data.error || `Server responded with status ${res.status}`,
+        error: data.error || `Backend server responded with status ${res.status}`,
       };
     }
 
     const data = await res.json();
     return data;
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Backend unreachable';
+    const msg = err instanceof Error ? err.message : 'Render backend unreachable';
     return {
       success: false,
       isConfigured: false,
-      error: msg,
+      error: `Could not reach backend (${getBackendBaseUrl()}): ${msg}`,
     };
   }
 };
 
 /**
- * Sends payment response parameters to backend for cryptographic HMAC verification
+ * Sends payment response parameters to Render backend for cryptographic HMAC verification
  */
 export const requestVerifyPayment = async (
   payload: RazorpayPaymentSuccessResult & { userId: string }
 ): Promise<VerifyPaymentResponse> => {
   try {
-    const res = await fetch('/api/razorpay/verify-payment', {
+    const res = await fetch(`${getBackendBaseUrl()}/api/razorpay/verify-payment`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
