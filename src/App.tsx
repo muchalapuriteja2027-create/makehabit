@@ -138,13 +138,15 @@ function MainApp() {
         onViewAnalytics={() => setCurrentView('progress')}
       />
 
-      <TrustModal
-        isOpen={trustModalState.isOpen}
-        initialTab={trustModalState.tab}
-        onClose={() =>
-          setTrustModalState((prev) => ({ ...prev, isOpen: false }))
-        }
-      />
+      {trustModalState.isOpen && (
+        <TrustModal
+          isOpen={trustModalState.isOpen}
+          initialTab={trustModalState.tab}
+          onClose={() =>
+            setTrustModalState((prev) => ({ ...prev, isOpen: false }))
+          }
+        />
+      )}
 
       {/* Clean Global Consumer Footer */}
       <footer className="bg-white border-t border-[#f0e6da] py-8 mt-12 mb-16 md:mb-0">

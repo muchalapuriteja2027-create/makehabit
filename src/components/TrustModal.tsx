@@ -16,8 +16,12 @@ export const TrustModal: React.FC<TrustModalProps> = ({
   const [activeTab, setActiveTab] = useState<TrustDocType>(initialTab);
   // Sync initial tab when opened
   React.useEffect(() => {
-    setActiveTab(initialTab);
+    if (isOpen) {
+      setActiveTab(initialTab);
+    }
   }, [initialTab, isOpen]);
+
+  if (!isOpen) return null;
 
   return (
     <div
