@@ -6,6 +6,16 @@
  * Order creation and HMAC payment verification are performed securely on the Render backend.
  */
 
+export interface RazorpayStatusResponse {
+  paymentsLive: boolean;
+  mode: 'test' | 'live';
+  planProposedPrice: string;
+  hasKeyId: boolean;
+  hasSecret: boolean;
+  keyId?: string | null;
+  keyIdPreview?: string | null;
+}
+
 export interface RazorpayOrderResponse {
   success: boolean;
   orderId?: string;
@@ -25,15 +35,21 @@ export interface RazorpayPaymentSuccessResult {
 export interface VerifyPaymentResponse {
   success: boolean;
   verified?: boolean;
+  message?: string;
+  paymentId?: string;
+  orderId?: string;
   error?: string;
 }
+
+// In-memory cache for the public Razorpay Key ID fetched from backend
+let cachedPublicRazorpayKeyId: string | null = null;
 
 /**
  * Returns the Render backend API base URL
  */
 export const getBackendBaseUrl = (): string => {
   const envUrl = import.meta.env.VITE_BACKEND_URL as string | undefined;
-  const baseUrl = envUrl || 'https://makehabit-twbz.onrender.com';
+  const baseUrl = envUrl && envUrl.trim().length > 0 ? envUrl.trim() : 'https://makehabit-twbz.onrender.com';
   return baseUrl.replace(/\/+$/, '');
 };
 
@@ -62,10 +78,50 @@ export const loadRazorpayScript = (): Promise<boolean> => {
 };
 
 /**
- * Checks if the public Razorpay Key ID is present in client environment
+ * Fetches Razorpay configuration status from the Render backend.
+ * Returns public Key ID when available, never the secret.
  */
-export const getClientRazorpayKey = (): string => {
-  return (import.meta.env.VITE_RAZORPAY_KEY_ID as string) || '';
+export const fetchRazorpayStatus = async (): Promise<RazorpayStatusResponse | null> => {
+  try {
+    const res = await fetch(`${getBackendBaseUrl()}/api/razorpay/status`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!res.ok) return null;
+    const data: RazorpayStatusResponse = await res.json();
+    if (data.keyId) {
+      cachedPublicRazorpayKeyId = data.keyId;
+    }
+    return data;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Retrieves the public Razorpay Key ID:
+ * 1. Checks client-side environment variable (if set in build)
+ * 2. Checks in-memory cache
+ * 3. Dynamically fetches from Render /api/razorpay/status
+ */
+export const getOrFetchRazorpayKey = async (): Promise<string> => {
+  const envKey = (import.meta.env.VITE_RAZORPAY_KEY_ID as string) || '';
+  if (envKey && !envKey.includes('YourTestKeyId')) {
+    return envKey;
+  }
+
+  if (cachedPublicRazorpayKeyId) {
+    return cachedPublicRazorpayKeyId;
+  }
+
+  const status = await fetchRazorpayStatus();
+  if (status?.keyId) {
+    cachedPublicRazorpayKeyId = status.keyId;
+    return status.keyId;
+  }
+
+  return '';
 };
 
 /**
@@ -81,7 +137,7 @@ export const checkBackendHealth = async (): Promise<boolean> => {
 };
 
 /**
- * Calls Render backend to create a ₹199 Razorpay order in test mode
+ * Calls Render backend to create a ₹199 Razorpay order (19900 paise) in test mode
  */
 export const requestCreateOrder = async (
   userId: string,
@@ -103,7 +159,10 @@ export const requestCreateOrder = async (
       };
     }
 
-    const data = await res.json();
+    const data: RazorpayOrderResponse = await res.json();
+    if (data.keyId) {
+      cachedPublicRazorpayKeyId = data.keyId;
+    }
     return data;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Render backend unreachable';
@@ -128,7 +187,7 @@ export const requestVerifyPayment = async (
       body: JSON.stringify(payload),
     });
 
-    const data = await res.json();
+    const data: VerifyPaymentResponse = await res.json();
     return data;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Payment verification failed';

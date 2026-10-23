@@ -14,27 +14,10 @@ export const TrustModal: React.FC<TrustModalProps> = ({
   onClose,
 }) => {
   const [activeTab, setActiveTab] = useState<TrustDocType>(initialTab);
-  const [contactSubject, setContactSubject] = useState('');
-  const [contactMessage, setContactMessage] = useState('');
-  const [contactSubmitted, setContactSubmitted] = useState(false);
-
   // Sync initial tab when opened
   React.useEffect(() => {
     setActiveTab(initialTab);
-    setContactSubmitted(false);
   }, [initialTab, isOpen]);
-
-  if (!isOpen) return null;
-
-  const handleContactSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!contactMessage.trim()) return;
-    setContactSubmitted(true);
-    setTimeout(() => {
-      setContactSubject('');
-      setContactMessage('');
-    }, 2000);
-  };
 
   return (
     <div
@@ -238,39 +221,15 @@ export const TrustModal: React.FC<TrustModalProps> = ({
                 </div>
               </div>
 
-              {/* Quick Message Form */}
-              <div className="pt-2">
-                <h3 className="text-sm font-black text-[#152238] mb-2">Send Feedback or Feature Request</h3>
-                {contactSubmitted ? (
-                  <div className="p-4 rounded-2xl bg-[#EAF7D5] border border-[#B8E36A] text-[#1E3805] text-xs font-black flex items-center gap-2 animate-fadeIn">
-                    <span className="material-symbols-outlined text-[20px]">check_circle</span>
-                    <span>Thank you! Your feedback has been received. Support details coming soon.</span>
-                  </div>
-                ) : (
-                  <form onSubmit={handleContactSubmit} className="space-y-3">
-                    <input
-                      type="text"
-                      placeholder="Subject (e.g. Feedback, Feature Request, Question)"
-                      value={contactSubject}
-                      onChange={(e) => setContactSubject(e.target.value)}
-                      className="w-full bg-[#FFF8F0] rounded-2xl border border-[#F0E6DA] px-4 py-2.5 text-xs sm:text-sm font-semibold outline-none focus:bg-white focus:border-[#FF704F] transition-all"
-                    />
-                    <textarea
-                      rows={3}
-                      required
-                      placeholder="Tell us what's on your mind..."
-                      value={contactMessage}
-                      onChange={(e) => setContactMessage(e.target.value)}
-                      className="w-full bg-[#FFF8F0] rounded-2xl border border-[#F0E6DA] px-4 py-2.5 text-xs sm:text-sm font-semibold outline-none focus:bg-white focus:border-[#FF704F] transition-all resize-none"
-                    />
-                    <button
-                      type="submit"
-                      className="px-6 py-2.5 rounded-2xl tactile-coral text-white text-xs font-black cursor-pointer shadow-xs"
-                    >
-                      Send Message
-                    </button>
-                  </form>
-                )}
+              {/* Support Notice */}
+              <div className="p-4 rounded-2xl bg-[#FFF8F0] border border-[#F0E6DA] space-y-2">
+                <h3 className="text-sm font-black text-[#152238] flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[18px] text-[#FF704F]">mark_email_unread</span>
+                  <span>Direct Communication</span>
+                </h3>
+                <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                  Official support contact details will be posted here as soon as our dedicated support helpdesk is live. In the meantime, you have complete control to edit, pause, or delete any of your habits directly inside MakeHabit.
+                </p>
               </div>
             </div>
           )}

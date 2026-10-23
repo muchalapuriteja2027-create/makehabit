@@ -82,6 +82,7 @@ app.get('/api/razorpay/status', (_req: Request, res: Response) => {
     planProposedPrice: '₹199 one-time',
     hasKeyId: Boolean(keyId),
     hasSecret: Boolean(keySecret),
+    keyId: keyId || null,
     keyIdPreview: keyId ? `${keyId.substring(0, 8)}...` : null,
   });
 });
