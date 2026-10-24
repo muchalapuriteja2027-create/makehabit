@@ -4,6 +4,7 @@ import { useHabits } from '../context/HabitsContext.tsx';
 import { HabitStack, getCleanAnchorTitle, getCleanActionTitle, formatHabitSentence } from '../types.ts';
 import { CategoryBadge } from './CategoryBadge.tsx';
 import { HabitBuddy } from './HabitBuddy.tsx';
+import { StudyChallengeCard } from './StudyChallengeCard.tsx';
 
 interface DashboardViewProps {
   onOpenNewStack: () => void;
@@ -377,6 +378,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </section>
       )}
+
+      {/* MakeHabit Student Differentiator: 21-Day Study Habit Challenge */}
+      <StudyChallengeCard onOpenNewStack={onOpenNewStack} />
 
       {/* 4. Today's Habits Section */}
       <section className="space-y-4">

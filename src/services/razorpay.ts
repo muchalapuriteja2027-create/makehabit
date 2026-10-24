@@ -35,9 +35,12 @@ export interface RazorpayPaymentSuccessResult {
 export interface VerifyPaymentResponse {
   success: boolean;
   verified?: boolean;
+  entitlementGranted?: boolean;
+  isDuplicate?: boolean;
   message?: string;
   paymentId?: string;
   orderId?: string;
+  mode?: 'test' | 'live';
   error?: string;
 }
 
@@ -137,16 +140,22 @@ export const checkBackendHealth = async (): Promise<boolean> => {
 };
 
 /**
- * Calls Render backend to create a ₹199 Razorpay order (19900 paise) in test mode
+ * Calls Render backend to create a ₹199 Razorpay order (19900 paise)
  */
 export const requestCreateOrder = async (
   userId: string,
-  userEmail?: string
+  userEmail?: string,
+  idToken?: string
 ): Promise<RazorpayOrderResponse> => {
   try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (idToken) {
+      headers['Authorization'] = `Bearer ${idToken}`;
+    }
+
     const res = await fetch(`${getBackendBaseUrl()}/api/razorpay/create-order`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ userId, userEmail, plan: 'premium_lifetime', amountInRupees: 199 }),
     });
 
@@ -175,15 +184,20 @@ export const requestCreateOrder = async (
 };
 
 /**
- * Sends payment response parameters to Render backend for cryptographic HMAC verification
+ * Sends payment response parameters to Render backend for cryptographic HMAC verification and entitlement
  */
 export const requestVerifyPayment = async (
-  payload: RazorpayPaymentSuccessResult & { userId: string }
+  payload: RazorpayPaymentSuccessResult & { userId: string; idToken?: string }
 ): Promise<VerifyPaymentResponse> => {
   try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (payload.idToken) {
+      headers['Authorization'] = `Bearer ${payload.idToken}`;
+    }
+
     const res = await fetch(`${getBackendBaseUrl()}/api/razorpay/verify-payment`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(payload),
     });
 

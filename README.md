@@ -127,9 +127,50 @@ Firestore security rules (`firestore.rules`) strictly enforce Attribute-Based Ac
 
 ---
 
-## Razorpay Payment Integration
+---
 
-MakeHabit includes an integration for a proposed **₹199 one-time Lifetime Premium** tier:
-- **Order Creation**: The client calls `POST /api/razorpay/create-order` on the Render backend. The server communicates with Razorpay APIs via Basic Auth using `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` to create an order of exactly 19,900 paise (₹199.00 INR).
-- **HMAC-SHA256 Verification**: Upon payment completion in the Razorpay Checkout modal, the payment signature is verified server-side (`POST /api/razorpay/verify-payment`) using HMAC-SHA256 and constant-time string comparison (`crypto.timingSafeEqual`) to prevent timing attacks.
-- **Zero Secret Exposure**: The secret key is never referenced, imported, or accessible in frontend code or Git history.
+## 21-Day Study Habit Challenge (Student Differentiator)
+
+MakeHabit includes a dedicated 21-Day Study Habit Challenge on the Home dashboard:
+- **Ready-Made Atomic Study Stacks**:
+  1. *Focus Pomodoro Session*: After opening laptop, study for 25 min without distraction.
+  2. *Daily Lecture Review*: After finishing evening meal, review lecture flashcards for 15 min.
+  3. *Active Recall Check*: After closing textbooks, write down 3 key concepts from memory.
+- **Real Tracking & Adherence**: Challenge adherence is calculated directly from actual daily completion records—never from fabricated counts.
+- **Universal Compatibility**: Works seamlessly for unauthenticated Guest Mode users (stored in `localStorage`) and authenticated Google accounts (synced to Firestore).
+- **Zero Duplication**: Starting the challenge checks for existing study habits and reuses them without duplicating records.
+
+---
+
+## Razorpay Payment Integration & Server Entitlements
+
+MakeHabit provides a secure integration for a proposed **₹199 one-time Lifetime Premium** tier:
+- **Order Creation**: The client calls `POST /api/razorpay/create-order` on the Render backend with an optional Firebase ID Token. The server communicates with Razorpay APIs via HTTP Basic Auth using server-side credentials to create an order of exactly 19,900 paise (₹199.00 INR).
+- **HMAC-SHA256 Verification**: Upon payment completion in Razorpay Checkout, the payment signature is verified server-side (`POST /api/razorpay/verify-payment`) using HMAC-SHA256 and constant-time string comparison (`crypto.timingSafeEqual`) to prevent timing attacks.
+- **Replay Protection**: The backend verifies payment receipts against Firestore (`payments/{razorpay_payment_id}`) to prevent duplicate or counterfeit activations.
+- **Server-Side Entitlement Storage**: Premium status (`plan: 'premium'`) is written directly by the backend using Firebase Admin SDK to ensure clients cannot self-grant access.
+- **Zero Secret Exposure**: The secret keys are never exposed in frontend code, client bundles, or Git repositories.
+
+### Configuring Firebase Admin SDK on Render
+
+To enable automatic server-side Firestore entitlement activation on your Render backend (`https://makehabit-twbz.onrender.com`):
+
+1. Go to the [Firebase Console](https://console.firebase.google.com/) -> Project Settings -> **Service accounts**.
+2. Click **Generate new private key** and download the JSON file.
+3. Open your [Render Dashboard](https://dashboard.render.com/) -> Navigate to your `makehabit-api` web service.
+4. Go to **Environment** -> **Add Environment Variable**.
+5. Add the variable:
+   - **Key**: `FIREBASE_SERVICE_ACCOUNT`
+   - **Value**: Paste the raw JSON string of the downloaded service account key (or a base64-encoded string of it).
+6. Click **Save Changes**. Render will automatically restart the service and initialize the Firebase Admin SDK.
+
+### Transitioning to Razorpay Live Mode
+
+When Razorpay activates and approves Live Mode for your account:
+1. In your Render Dashboard, add:
+   - `RAZORPAY_MODE`: `live`
+   - `RAZORPAY_LIVE_KEY_ID`: Your live Razorpay Key ID (`rzp_live_...`)
+   - `RAZORPAY_LIVE_KEY_SECRET`: Your live Razorpay Key Secret
+2. The server will automatically switch to Live Mode and report `mode: "live"`, `paymentsLive: true` on `/api/razorpay/status`.
+3. In GitHub Pages or local builds, set `VITE_RAZORPAY_KEY_ID` to your live key ID, or leave it blank to dynamically retrieve it from Render.
+

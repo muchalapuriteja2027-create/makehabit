@@ -163,6 +163,37 @@ export interface CompletionRecord {
   completedAt: string;
 }
 
+export interface StudyChallenge {
+  isActive: boolean;
+  startedAt: string; // ISO date string
+  targetDays: number; // 21
+  habitIds: string[];
+}
+
+export const STUDY_CHALLENGE_TEMPLATES = [
+  {
+    title: 'Focus Pomodoro Session',
+    anchor: 'opening my laptop 💻',
+    action: 'study focused for 25 minutes without distraction 📚',
+    category: 'Work' as const,
+    durationMinutes: 25,
+  },
+  {
+    title: 'Daily Lecture Review',
+    anchor: 'finishing my evening meal 🥗',
+    action: 'review lecture summaries and flashcards for 15 minutes 🧠',
+    category: 'Work' as const,
+    durationMinutes: 15,
+  },
+  {
+    title: 'Active Recall Check',
+    anchor: 'closing my textbooks 📖',
+    action: 'write down 3 key concepts from memory ✍️',
+    category: 'Personal' as const,
+    durationMinutes: 10,
+  },
+];
+
 export interface UserProfile {
   userId: string;
   displayName: string;
@@ -173,6 +204,7 @@ export interface UserProfile {
   dailyTarget: number;
   soundEffects: boolean;
   plan?: PlanType;
+  studyChallenge?: StudyChallenge;
 }
 
 export interface DayStreakStatus {

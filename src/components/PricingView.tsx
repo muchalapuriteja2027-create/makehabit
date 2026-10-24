@@ -34,6 +34,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
     orderId: string;
     paymentId: string;
     verified: boolean;
+    entitlementGranted?: boolean;
+    message?: string;
   } | null>(null);
 
   // Technical details modal state
@@ -85,9 +87,11 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
       // Step 2: Create ₹199 (19900 paise) order on the Render backend
       setCheckoutStatusText('Creating ₹199 test order on server...');
+      const idToken = currentUser ? await currentUser.getIdToken().catch(() => undefined) : undefined;
       const orderRes = await requestCreateOrder(
         currentUser.uid,
-        currentUser.email || undefined
+        currentUser.email || undefined,
+        idToken
       );
 
       if (!orderRes.success || !orderRes.orderId) {
@@ -133,11 +137,13 @@ export const PricingView: React.FC<PricingViewProps> = ({
         }) => {
           setCheckoutStatusText('Verifying payment signature with server HMAC...');
           try {
+            const freshToken = currentUser ? await currentUser.getIdToken().catch(() => undefined) : undefined;
             const verifyRes = await requestVerifyPayment({
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_order_id: response.razorpay_order_id,
               razorpay_signature: response.razorpay_signature,
               userId: currentUser.uid,
+              idToken: freshToken,
             });
 
             if (verifyRes.success && verifyRes.verified) {
@@ -145,6 +151,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
                 orderId: response.razorpay_order_id,
                 paymentId: response.razorpay_payment_id,
                 verified: true,
+                entitlementGranted: Boolean(verifyRes.entitlementGranted),
+                message: verifyRes.message,
               });
               setCheckoutStatusText('');
             } else {
@@ -628,14 +636,22 @@ export const PricingView: React.FC<PricingViewProps> = ({
             </div>
 
             <div className="text-center space-y-1.5">
-              <span className="px-3 py-1 rounded-full bg-[#EAF7D5] text-[#1E3805] text-[10px] font-black uppercase tracking-wide border border-[#B8E36A]">
-                HMAC-SHA256 Verified
+              <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wide border ${
+                verifiedPayment.entitlementGranted
+                  ? 'bg-[#EAF7D5] text-[#1E3805] border-[#B8E36A]'
+                  : 'bg-amber-50 text-amber-800 border-amber-300'
+              }`}>
+                {verifiedPayment.entitlementGranted ? 'Lifetime Entitlement Active' : 'HMAC-SHA256 Signature Verified'}
               </span>
               <h3 className="text-xl font-black text-[#152238]">
-                Razorpay Test Payment Verified!
+                {verifiedPayment.entitlementGranted
+                  ? 'MakeHabit Premium Activated! 🎉'
+                  : 'Razorpay Test Payment Verified!'}
               </h3>
               <p className="text-xs sm:text-sm text-slate-600 font-medium leading-relaxed">
-                Your ₹199 test payment signature was cryptographically verified on the Render backend.
+                {verifiedPayment.entitlementGranted
+                  ? 'Your ₹199 purchase was cryptographically verified and your account is upgraded to MakeHabit Premium Lifetime access.'
+                  : 'Your ₹199 test payment signature was cryptographically verified on the Render backend.'}
               </p>
             </div>
 
@@ -653,13 +669,23 @@ export const PricingView: React.FC<PricingViewProps> = ({
                 <span className="font-bold text-[#1E3805]">₹199.00 (19900 paise)</span>
               </div>
               <div className="flex justify-between items-center text-slate-600">
-                <span className="font-bold">Mode:</span>
-                <span className="font-bold text-[#FF704F]">Razorpay Test Sandbox</span>
+                <span className="font-bold">Server Entitlement:</span>
+                <span className={`font-bold ${verifiedPayment.entitlementGranted ? 'text-[#1E3805]' : 'text-amber-800'}`}>
+                  {verifiedPayment.entitlementGranted ? 'Granted in Firestore ✓' : 'Verified (Pending Service Key)'}
+                </span>
               </div>
             </div>
 
             <div className="p-3 rounded-2xl bg-[#FFF8F0] border border-[#F0E6DA] text-[11px] text-slate-600 font-medium leading-relaxed">
-              <strong>Entitlement Security Notice:</strong> Because this is a test transaction and payment security is strictly enforced, genuine lifetime account unlocks require linking the Firebase Admin SDK service account key on Render to write server-verified entitlements to Firestore.
+              {verifiedPayment.entitlementGranted ? (
+                <span>
+                  <strong>Full Lifetime Access:</strong> You now have unlimited active habit stacks, 90-day retention reports, and advanced consistency heatmaps.
+                </span>
+              ) : (
+                <span>
+                  <strong>Entitlement Notice:</strong> Payment verification passed all cryptographic checks. To allow Render to write server-verified entitlements directly to Firestore, configure <code>FIREBASE_SERVICE_ACCOUNT</code> in Render Environment Variables.
+                </span>
+              )}
             </div>
 
             <div className="pt-2 flex items-center justify-center gap-3">
@@ -667,7 +693,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                 onClick={() => setVerifiedPayment(null)}
                 className="px-6 py-2.5 rounded-2xl tactile-coral text-white text-xs font-black cursor-pointer shadow-xs"
               >
-                Close Notice
+                {verifiedPayment.entitlementGranted ? 'Explore Premium' : 'Close Notice'}
               </button>
             </div>
           </div>

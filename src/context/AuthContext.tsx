@@ -41,7 +41,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isGuest, setIsGuest] = useState<boolean>(() => {
     return typeof window !== 'undefined' && localStorage.getItem(GUEST_MODE_KEY) === 'true';
   });
-  const [guestPrefs, setGuestPrefs] = useState<{ dailyTarget: number; soundEffects: boolean }>(() => {
+  const [guestPrefs, setGuestPrefs] = useState<{
+    dailyTarget: number;
+    soundEffects: boolean;
+    studyChallenge?: any;
+  }>(() => {
     if (typeof window === 'undefined') return { dailyTarget: 3, soundEffects: true };
     try {
       const raw = localStorage.getItem(GUEST_PREFS_KEY);
@@ -290,6 +294,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const next = {
           dailyTarget: updates.dailyTarget !== undefined ? updates.dailyTarget : prev.dailyTarget,
           soundEffects: updates.soundEffects !== undefined ? updates.soundEffects : prev.soundEffects,
+          studyChallenge: updates.studyChallenge !== undefined ? updates.studyChallenge : prev.studyChallenge,
         };
         try {
           localStorage.setItem(GUEST_PREFS_KEY, JSON.stringify(next));
@@ -324,6 +329,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         dailyTarget: guestPrefs.dailyTarget,
         soundEffects: guestPrefs.soundEffects,
         plan: 'free',
+        studyChallenge: guestPrefs.studyChallenge,
       }
     : null;
 
