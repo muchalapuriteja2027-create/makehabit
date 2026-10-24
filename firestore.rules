@@ -23,11 +23,6 @@ service cloud.firestore {
       return request.resource.data;
     }
 
-    // Test connection endpoint for initial validation
-    match /test/{docId} {
-      allow read: if true;
-    }
-
     // User profile document (PII isolation: readable & writable only by the account owner)
     match /users/{userId} {
       allow get: if isOwner(userId);
