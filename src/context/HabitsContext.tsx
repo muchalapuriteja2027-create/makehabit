@@ -12,7 +12,7 @@ import {
   updateDoc,
   onSnapshot,
 } from 'firebase/firestore';
-import { useAuth } from './AuthContext.tsx';
+import { useAuth, GUEST_HABITS_KEY, GUEST_COMPLETIONS_KEY } from './AuthContext.tsx';
 import {
   HabitStack,
   CompletionRecord,
@@ -59,7 +59,7 @@ export function formatDateToIso(d: Date): string {
 }
 
 export const HabitsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { currentUser, userProfile, updatePreferences } = useAuth();
+  const { currentUser, userProfile, isGuest } = useAuth();
   const [habits, setHabits] = useState<HabitStack[]>([]);
   const [completions, setCompletions] = useState<Record<string, CompletionRecord>>({});
   const [loading, setLoading] = useState(true);
@@ -67,11 +67,27 @@ export const HabitsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const todayDateStr = useMemo(() => getTodayDateStr(), []);
 
-  // Listen to habits
+  // Listen to habits and completions (or load from localStorage if guest)
   useEffect(() => {
     if (!currentUser) {
-      setHabits([]);
-      setCompletions({});
+      if (isGuest) {
+        try {
+          const rawHabits = localStorage.getItem(GUEST_HABITS_KEY);
+          const rawCompletions = localStorage.getItem(GUEST_COMPLETIONS_KEY);
+          const parsedHabits: HabitStack[] = rawHabits ? JSON.parse(rawHabits) : [];
+          const parsedCompletions: Record<string, CompletionRecord> = rawCompletions
+            ? JSON.parse(rawCompletions)
+            : {};
+          parsedHabits.sort((a, b) => a.order - b.order);
+          setHabits(parsedHabits);
+          setCompletions(parsedCompletions);
+        } catch (err) {
+          console.error('Error loading guest data from localStorage:', err);
+        }
+      } else {
+        setHabits([]);
+        setCompletions({});
+      }
       setLoading(false);
       return;
     }
@@ -148,7 +164,7 @@ export const HabitsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       unsubscribeHabits();
       unsubscribeCompletions();
     };
-  }, [currentUser]);
+  }, [currentUser, isGuest]);
 
   // Today's applicable active habits based on day of week
   const todayHabits = useMemo(() => {
@@ -397,16 +413,24 @@ export const HabitsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const addHabit = async (
     data: Omit<HabitStack, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'order'>
   ): Promise<string> => {
-    if (!currentUser) throw new Error('Must be signed in to create habits');
     const habitId = `habit_${Date.now()}`;
     const newHabit: HabitStack = {
       ...data,
       id: habitId,
-      userId: currentUser.uid,
+      userId: currentUser?.uid || 'guest',
       order: habits.length + 1,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+
+    if (!currentUser && isGuest) {
+      const updated = [...habits, newHabit];
+      setHabits(updated);
+      localStorage.setItem(GUEST_HABITS_KEY, JSON.stringify(updated));
+      return habitId;
+    }
+
+    if (!currentUser) throw new Error('Must be signed in to create habits');
 
     const docRef = doc(db, 'users', currentUser.uid, 'habits', habitId);
     try {
@@ -422,6 +446,22 @@ export const HabitsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Update Habit
   const updateHabit = async (id: string, updates: Partial<HabitStack>) => {
+    if (!currentUser && isGuest) {
+      const updated = habits.map((h) => {
+        if (h.id === id) {
+          return {
+            ...h,
+            ...updates,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return h;
+      });
+      setHabits(updated);
+      localStorage.setItem(GUEST_HABITS_KEY, JSON.stringify(updated));
+      return;
+    }
+
     if (!currentUser) return;
     const docRef = doc(db, 'users', currentUser.uid, 'habits', id);
     try {
@@ -451,6 +491,26 @@ export const HabitsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Delete Habit
   const deleteHabit = async (id: string) => {
+    if (!currentUser && isGuest) {
+      const updated = habits.filter((h) => h.id !== id);
+      setHabits(updated);
+      localStorage.setItem(GUEST_HABITS_KEY, JSON.stringify(updated));
+
+      const updatedComps = { ...completions };
+      let changed = false;
+      Object.keys(updatedComps).forEach((k) => {
+        if (updatedComps[k].habitId === id) {
+          delete updatedComps[k];
+          changed = true;
+        }
+      });
+      if (changed) {
+        setCompletions(updatedComps);
+        localStorage.setItem(GUEST_COMPLETIONS_KEY, JSON.stringify(updatedComps));
+      }
+      return;
+    }
+
     if (!currentUser) return;
     const docRef = doc(db, 'users', currentUser.uid, 'habits', id);
     try {
@@ -462,10 +522,65 @@ export const HabitsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Toggle Completion
   const toggleCompletion = async (habitId: string, dateStr: string = todayDateStr): Promise<boolean> => {
-    if (!currentUser) return false;
     const completionId = `${dateStr}_${habitId}`;
     const currentlyDone = isHabitCompletedOnDate(habitId, dateStr);
     const newDoneState = !currentlyDone;
+
+    // Guest Mode local completion
+    if (!currentUser && isGuest) {
+      const updatedComps: Record<string, CompletionRecord> = {
+        ...completions,
+        [completionId]: {
+          id: completionId,
+          userId: 'guest',
+          habitId,
+          date: dateStr,
+          completed: newDoneState,
+          completedAt: new Date().toISOString(),
+        },
+      };
+
+      setCompletions(updatedComps);
+      localStorage.setItem(GUEST_COMPLETIONS_KEY, JSON.stringify(updatedComps));
+
+      if (newDoneState) {
+        if (userProfile?.soundEffects !== false) {
+          playHapticAudio();
+        }
+
+        try {
+          confetti({
+            particleCount: 35,
+            spread: 55,
+            origin: { y: 0.7 },
+            colors: ['#10b981', '#8455ef', '#f59e0b', '#3b82f6'],
+            disableForReducedMotion: true,
+          });
+        } catch {}
+
+        const habit = habits.find((h) => h.id === habitId);
+        const otherIncompleteHabits = todayHabits.filter(
+          (h) => h.id !== habitId && !Boolean(updatedComps[`${dateStr}_${h.id}`]?.completed)
+        );
+        const isAllDone = otherIncompleteHabits.length === 0 && todayHabits.length > 0;
+        if (habit && isAllDone) {
+          const currentDayStreak = streakStats.currentStreak;
+          if (currentDayStreak === 14) {
+            triggerCelebrationModal(habit, 'milestone_14');
+          } else if (currentDayStreak === 7) {
+            triggerCelebrationModal(habit, 'milestone_7');
+          } else if (currentDayStreak === 3) {
+            triggerCelebrationModal(habit, 'milestone_3');
+          } else {
+            triggerCelebrationModal(habit, 'all_done');
+          }
+        }
+      }
+
+      return newDoneState;
+    }
+
+    if (!currentUser) return false;
 
     const docRef = doc(db, 'users', currentUser.uid, 'completions', completionId);
 

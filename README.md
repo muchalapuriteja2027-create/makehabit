@@ -88,6 +88,16 @@ MakeHabit uses Google Firebase for secure user management and database persisten
 
 ---
 
+## Guest Mode & Seamless Cloud Migration
+
+MakeHabit supports instant exploration without requiring Google sign-in:
+- **Instant Onboarding**: Visitors can click "Try without signing in" to immediately create, edit, pause, and check off habits.
+- **Local Persistence**: Guest habits, daily completion history, and preferences are stored in the browser's `localStorage` (`makehabit_guest_habits`, `makehabit_guest_completions`, `makehabit_guest_prefs`) using the exact same data schema as Firestore.
+- **Transparent Notice**: A persistent device-only badge and banner remind guests that data is local to their current device.
+- **Zero-Loss Cloud Migration**: When the guest subsequently signs in with Google, `AuthContext` safely reads their local habits and completions, queries their Firestore account (`users/{uid}`) to avoid duplicating existing routines, writes new records to Firestore, verifies successful write operations, and only then clears the local guest storage. If network or permission issues occur, local data is preserved and a notice is presented.
+
+---
+
 ## Firestore Security Architecture
 
 Firestore security rules (`firestore.rules`) strictly enforce Attribute-Based Access Control (ABAC) and Zero-Trust data isolation:

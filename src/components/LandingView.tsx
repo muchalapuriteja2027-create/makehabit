@@ -14,7 +14,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
   onOpenTrustModal: _onOpenTrustModal,
   onViewPricing,
 }) => {
-  const { signIn, loading } = useAuth();
+  const { signIn, enterGuestMode, loading } = useAuth();
   const [heroHabitDone, setHeroHabitDone] = useState(false);
   const [activeRoutineTab, setActiveRoutineTab] = useState<'morning' | 'evening'>('morning');
   const [sandboxChecks, setSandboxChecks] = useState<Record<string, boolean>>({
@@ -56,7 +56,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
             </p>
 
             {/* Main CTA */}
-            <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 flex-wrap">
               <button
                 onClick={signIn}
                 disabled={loading}
@@ -83,15 +83,21 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 <span>Continue with Google</span>
                 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
               </button>
-              <a
-                href="#interactive-demo"
-                className="w-full sm:w-auto px-6 py-4 rounded-2xl bg-white hover:bg-[#FFF8F0] text-[#152238] border border-[#F0E6DA] text-sm font-black flex items-center justify-center gap-2 shadow-2xs transition-colors"
+
+              {/* Try without signing in - Guest Mode */}
+              <button
+                onClick={enterGuestMode}
+                className="w-full sm:w-auto px-7 py-4 rounded-2xl bg-white hover:bg-[#FFF8F0] text-[#152238] border-2 border-[#152238]/15 hover:border-[#FF704F] text-sm font-black flex items-center justify-center gap-2.5 shadow-2xs transition-all cursor-pointer group"
               >
-                <span>Try Demo</span>
-                <span className="material-symbols-outlined text-slate-400 text-[18px]">
-                  arrow_downward
+                <span className="material-symbols-outlined text-[#FF704F] text-[20px] transition-transform group-hover:scale-110">
+                  person
                 </span>
-              </a>
+                <span>Try without signing in</span>
+                <span className="px-2 py-0.5 rounded-full bg-[#EAF7D5] text-[#1E3805] text-[10px] font-black uppercase tracking-wide">
+                  Guest
+                </span>
+              </button>
+
               {onViewPricing && (
                 <button
                   onClick={onViewPricing}
@@ -490,8 +496,15 @@ export const LandingView: React.FC<LandingViewProps> = ({
               >
                 Get Started with Google
               </button>
+              <button
+                onClick={enterGuestMode}
+                className="px-6 py-3.5 rounded-2xl bg-white/20 hover:bg-white/30 text-white border border-white/30 text-sm font-black transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-[18px]">person</span>
+                <span>Try without signing in</span>
+              </button>
             </div>
-            <p className="text-[11px] text-white/80 font-medium">Private, secure Google Sign-In with real-time cloud sync</p>
+            <p className="text-[11px] text-white/80 font-medium">Private, secure Google Sign-In or local guest mode</p>
           </div>
         </div>
       </section>

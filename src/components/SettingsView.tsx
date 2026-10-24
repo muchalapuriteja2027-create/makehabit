@@ -12,11 +12,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onNavigate,
   onOpenTrustModal,
 }) => {
-  const { currentUser, userProfile, updatePreferences, signOutUser } = useAuth();
+  const { currentUser, userProfile, updatePreferences, signOutUser, isGuest, signIn } = useAuth();
 
   const dailyTarget = userProfile?.dailyTarget || 3;
   const soundEffects = userProfile?.soundEffects !== false;
-  const currentPlan = userProfile?.plan === 'premium' ? 'MakeHabit Premium' : 'Free Plan';
+  const currentPlan = userProfile?.plan === 'premium' ? 'MakeHabit Premium' : isGuest ? 'Guest Free Plan' : 'Free Plan';
   const isPremium = userProfile?.plan === 'premium';
 
   const handleSliderChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -57,22 +57,54 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <span>{userProfile?.displayName?.charAt(0) || 'U'}</span>
+                <span className="material-symbols-outlined text-2xl">
+                  {isGuest ? 'person_outline' : 'person'}
+                </span>
               )}
             </div>
             <div>
               <h3 className="text-base font-black text-[#152238] leading-snug">
-                {userProfile?.displayName || 'MakeHabit Member'}
+                {isGuest ? 'Guest Builder' : userProfile?.displayName || 'MakeHabit Member'}
               </h3>
-              <p className="text-xs text-slate-500 font-medium">{userProfile?.email || currentUser?.email}</p>
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-black text-[#1E3805] mt-1 bg-[#EAF7D5] px-2.5 py-0.5 rounded-full border border-[#B8E36A]">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#B8E36A]" />
-                <span>Signed In with Google</span>
-              </span>
+              <p className="text-xs text-slate-500 font-medium">
+                {isGuest ? 'Stored on this device only (localStorage)' : userProfile?.email || currentUser?.email}
+              </p>
+              {isGuest ? (
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-black text-amber-800 mt-1 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  <span>Guest Mode (Local Only)</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-black text-[#1E3805] mt-1 bg-[#EAF7D5] px-2.5 py-0.5 rounded-full border border-[#B8E36A]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#B8E36A]" />
+                  <span>Signed In with Google</span>
+                </span>
+              )}
             </div>
           </div>
           <HabitBuddy mood="happy" size="sm" className="hidden sm:inline-flex" />
         </div>
+
+        {isGuest && (
+          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <div className="text-xs font-black text-amber-900 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[16px] text-amber-700">cloud_off</span>
+                <span>Data not synced across devices</span>
+              </div>
+              <p className="text-[11px] text-amber-800 font-medium">
+                Sign in with Google to automatically back up your habit stacks and streak history to Firestore without losing anything.
+              </p>
+            </div>
+            <button
+              onClick={signIn}
+              className="px-4 py-2 rounded-xl bg-[#152238] hover:bg-[#1E2D4A] text-white text-xs font-black transition-colors cursor-pointer shrink-0 shadow-xs flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-[16px]">login</span>
+              <span>Sign In with Google</span>
+            </button>
+          </div>
+        )}
       </section>
 
       {/* Membership Plan Section */}
@@ -238,20 +270,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       </section>
 
       {/* Account Actions Section */}
-      <section className="bg-white rounded-3xl p-6 sm:p-7 border border-[#F0E6DA] tactile-card flex items-center justify-between">
+      <section className="bg-white rounded-3xl p-6 sm:p-7 border border-[#F0E6DA] tactile-card flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-base font-black text-[#152238]">Sign Out</h2>
+          <h2 className="text-base font-black text-[#152238]">
+            {isGuest ? 'Exit Guest Mode' : 'Sign Out'}
+          </h2>
           <p className="text-xs text-slate-500 font-medium">
-            Your habit data remains securely saved to your account.
+            {isGuest
+              ? 'Your local habits remain on this device. Sign in with Google anytime to back them up to the cloud.'
+              : 'Your habit data remains securely saved to your account in Firestore.'}
           </p>
         </div>
 
         <button
           onClick={signOutUser}
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-red-50 hover:bg-red-100 text-red-600 text-xs font-black transition-colors cursor-pointer border border-red-200"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-red-50 hover:bg-red-100 text-red-600 text-xs font-black transition-colors cursor-pointer border border-red-200 shrink-0"
         >
           <span className="material-symbols-outlined text-[18px]">logout</span>
-          <span>Sign Out</span>
+          <span>{isGuest ? 'Exit Guest Mode' : 'Sign Out'}</span>
         </button>
       </section>
     </div>
