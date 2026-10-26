@@ -193,18 +193,18 @@ app.post('/api/razorpay/create-order', async (req: Request, res: Response) => {
     const { userId, userEmail } = req.body;
     const verifiedUser = await verifyFirebaseToken(req.headers.authorization);
 
-    if (!verifiedUser) {
+    if (mode === 'live' && !verifiedUser) {
       res.status(401).json({
         success: false,
-        error: 'Sign in with Google before creating a Premium order.',
+        error: 'Live checkout requires a verified Google sign-in.',
       });
       return;
     }
 
-    if (!userId || verifiedUser.uid !== userId) {
+    if (!userId || userId === 'guest' || (verifiedUser && verifiedUser.uid !== userId)) {
       res.status(403).json({
         success: false,
-        error: 'Authenticated user does not match the requested order userId.',
+        error: 'A signed-in account matching the requested order userId is required.',
       });
       return;
     }
@@ -235,7 +235,7 @@ app.post('/api/razorpay/create-order', async (req: Request, res: Response) => {
     }
 
     const amountInPaise = 19900; // Fixed ₹199.00 in paise
-    const effectiveUserId = verifiedUser.uid;
+    const effectiveUserId = verifiedUser?.uid || userId;
     const receiptId = `rcpt_${effectiveUserId.substring(0, 10)}_${Date.now()}`;
 
     // Call Razorpay API with HTTP Basic Auth
@@ -312,15 +312,15 @@ app.post('/api/razorpay/verify-payment', async (req: Request, res: Response) => 
     }
 
     const verifiedUser = await verifyFirebaseToken(req.headers.authorization);
-    if (!verifiedUser) {
+    if (mode === 'live' && !verifiedUser) {
       res.status(401).json({
         success: false,
         verified: false,
-        error: 'Sign in with Google before verifying a payment.',
+        error: 'Live payment verification requires a verified Google sign-in.',
       });
       return;
     }
-    if (!userId || verifiedUser.uid !== userId) {
+    if (!userId || userId === 'guest' || (verifiedUser && verifiedUser.uid !== userId)) {
       res.status(403).json({
         success: false,
         verified: false,
@@ -383,7 +383,7 @@ app.post('/api/razorpay/verify-payment', async (req: Request, res: Response) => 
       && order.currency === 'INR'
       && order.status === 'paid'
       && order.notes?.plan === 'premium_lifetime'
-      && order.notes?.userId === verifiedUser.uid
+      && order.notes?.userId === (verifiedUser?.uid || userId)
       && order.notes?.mode === mode;
     const paymentMatches = payment.id === razorpay_payment_id
       && payment.order_id === razorpay_order_id
@@ -416,7 +416,7 @@ app.post('/api/razorpay/verify-payment', async (req: Request, res: Response) => 
       return;
     }
 
-    const effectiveUid = verifiedUser.uid;
+    const effectiveUid = verifiedUser?.uid || userId;
     const { adminDb } = initFirebaseAdmin();
     if (!adminDb) {
       res.status(503).json({
