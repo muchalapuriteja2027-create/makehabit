@@ -65,7 +65,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
   }, []);
 
   const hasPaymentKeys = Boolean(backendStatus?.hasKeyId && backendStatus?.hasSecret);
-  const isLiveMode = backendStatus?.mode === 'live' && backendStatus.paymentsLive;
+  const isLiveMode = backendStatus?.mode === 'live';
   const liveCheckoutReady = Boolean(backendStatus?.liveCheckoutReady);
   const isLiveCheckoutBlocked = backendStatus?.mode === 'live' && !liveCheckoutReady;
   const paymentSetupReady = hasPaymentKeys && !isLiveCheckoutBlocked;
@@ -608,7 +608,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
           <div className="p-4 rounded-2xl bg-[#FFF8F0] border border-[#F0E6DA] space-y-1.5">
             <h3 className="text-sm font-black text-[#152238]">What happens during this test checkout?</h3>
             <p className="text-xs text-slate-600 font-medium leading-relaxed">
-              {isLiveMode
+              {isLiveMode && liveCheckoutReady
                 ? 'Live checkout processes real payments. Premium access is granted only after Razorpay confirms a captured payment and the server saves the entitlement securely.'
                 : 'The checkout runs in Razorpay Test Mode using your Render backend. Use Razorpay test payment details. No real payment is collected, and Premium access is not granted by a test payment.'}
             </p>
@@ -624,7 +624,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
           <div className="p-4 rounded-2xl bg-[#FFF8F0] border border-[#F0E6DA] space-y-1.5">
             <h3 className="text-sm font-black text-[#152238]">What is the refund policy?</h3>
             <p className="text-xs text-slate-600 font-medium leading-relaxed">
-              {isLiveMode
+              {isLiveMode && liveCheckoutReady
                 ? 'For a live purchase, contact support promptly if a payment is captured but Premium access is not reflected. Keep the payment ID for reconciliation.'
                 : 'Because transactions are in Test Mode, no real funds are processed. A commercial refund policy must be published before accepting live purchases.'}
             </p>
