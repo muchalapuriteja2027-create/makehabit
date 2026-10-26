@@ -127,6 +127,7 @@ export const TrustModal: React.FC<TrustModalProps> = ({
                 <li>Your data is stored in Google Cloud Firestore with granular, per-user security rules ensuring <strong>only you</strong> can read or update your own records.</li>
                 <li>We do not sell, rent, monetize, or share your personal data with third-party advertising networks or data brokers.</li>
                 <li>We use client-side authentication to sync your habits across your desktop and mobile browsers.</li>
+                <li>When enabled, Microsoft Clarity may collect pseudonymous usage analytics, heatmaps, and session recordings so we can improve the user experience. Microsoft says Clarity masks sensitive content by default, but users should still avoid entering sensitive personal or health information into habit names or descriptions.</li>
               </ul>
 
               <h3 className="text-base font-black text-[#152238] pt-2">3. Data Retention & Deletion</h3>
