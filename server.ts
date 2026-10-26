@@ -29,9 +29,14 @@ const initFirebaseAdmin = () => {
         const decoded = Buffer.from(serviceAccountRaw, 'base64').toString('utf-8');
         serviceAccount = JSON.parse(decoded);
       }
+      if (serviceAccount.project_id && serviceAccount.project_id !== projectId) {
+        throw new Error(
+          `FIREBASE_SERVICE_ACCOUNT project ${serviceAccount.project_id} does not match FIREBASE_PROJECT_ID ${projectId}.`
+        );
+      }
       adminApp = initializeApp({
         credential: cert(serviceAccount),
-        projectId: serviceAccount.project_id || projectId,
+        projectId,
       });
       adminDb = getFirestore(adminApp, databaseId);
       console.log('Firebase Admin SDK initialized successfully with service account.');
