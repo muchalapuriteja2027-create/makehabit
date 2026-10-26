@@ -89,7 +89,9 @@ app.use((req: Request, res: Response, next) => {
   next();
 });
 
-app.use(express.json());
+// Payment API only needs small, uncompressed JSON bodies. Reject compressed
+// bodies and cap payload size to mitigate body-parser decompression DoS advisories.
+app.use(express.json({ inflate: false, limit: '32kb' }));
 
 // Helper: Determine credentials based on mode (Live vs Test)
 const getRazorpayCredentials = () => {
