@@ -35,6 +35,29 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Dependency audit summary (report only)
+        continue-on-error: true
+        run: |
+          npm audit --json > /tmp/npm-audit.json || true
+          node <<'NODE'
+          const fs = require('node:fs');
+          try {
+            const report = JSON.parse(fs.readFileSync('/tmp/npm-audit.json', 'utf8'));
+            console.log('Dependency audit counts:', JSON.stringify(report.metadata?.vulnerabilities || {}));
+            for (const [name, item] of Object.entries(report.vulnerabilities || {})) {
+              const advisories = (item.via || [])
+                .filter((entry) => typeof entry === 'object')
+                .map((entry) => entry.title || entry.url || 'advisory')
+                .join('; ');
+              console.log(
+                `${String(item.severity).toUpperCase()} ${name} | direct=${item.isDirect} | range=${item.range} | fixAvailable=${JSON.stringify(item.fixAvailable)} | ${advisories}`
+              );
+            }
+          } catch (error) {
+            console.log('Could not parse npm audit report:', error.message);
+          }
+          NODE
+
       - name: Type-check
         run: npm run lint
 
