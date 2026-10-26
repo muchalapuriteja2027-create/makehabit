@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { initializeApp, cert, applicationDefault, App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { getFirestore, Firestore } from 'firebase-admin/firestore';
+import { getFirestore, Firestore, Transaction } from 'firebase-admin/firestore';
 
 dotenv.config();
 
@@ -437,7 +437,7 @@ app.post('/api/razorpay/verify-payment', async (req: Request, res: Response) => 
         // cannot report success for a payment recorded against another account.
         const paymentDocRef = adminDb.doc(`payments/${razorpay_payment_id}`);
         const userDocRef = adminDb.doc(`users/${effectiveUid}`);
-        const activationResult = await adminDb.runTransaction(async (transaction) => {
+        const activationResult = await adminDb.runTransaction(async (transaction: Transaction) => {
           const existingPayment = await transaction.get(paymentDocRef);
           if (existingPayment.exists && existingPayment.data()?.status === 'captured') {
             const existingData = existingPayment.data();
