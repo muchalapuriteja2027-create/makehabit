@@ -11,7 +11,7 @@ on:
 
 # Permissions required for GitHub Pages deployment
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -34,6 +34,19 @@ jobs:
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps
+
+      - name: Commit refreshed package lockfile
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor != 'github-actions[bot]' }}
+        run: |
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo "Package lockfile is already synchronized."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "build: sync package lockfile"
+          git push
 
       - name: Dependency audit summary (report only)
         continue-on-error: true
