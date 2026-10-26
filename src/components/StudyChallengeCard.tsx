@@ -10,7 +10,7 @@ interface StudyChallengeCardProps {
 
 export const StudyChallengeCard: React.FC<StudyChallengeCardProps> = ({ onOpenNewStack: _onOpenNewStack }) => {
   const { userProfile, updatePreferences, isGuest, currentUser } = useAuth();
-  const { habits, completions, addHabit, todayDateStr, isHabitCompletedOnDate, toggleCompletion } = useHabits();
+  const { habits, completions, addHabit, updateHabit, todayDateStr, isHabitCompletedOnDate, toggleCompletion } = useHabits();
 
   const [isStarting, setIsStarting] = useState(false);
   const [activeFeedback, setActiveFeedback] = useState<string | null>(null);
@@ -45,7 +45,7 @@ export const StudyChallengeCard: React.FC<StudyChallengeCardProps> = ({ onOpenNe
   const completedStudyDates = new Set<string>();
   Object.values(completions).forEach((comp) => {
     if (comp.completed && comp.date >= startedAtDateStr) {
-      const isRelated = studyHabits.some((sh) => sh.id === comp.habitId);
+      const isRelated = studyHabits.some((sh) => sh.id === comp.habitId && sh.status === 'active');
       if (isRelated) {
         completedStudyDates.add(comp.date);
       }
@@ -53,7 +53,9 @@ export const StudyChallengeCard: React.FC<StudyChallengeCardProps> = ({ onOpenNe
   });
 
   const completedDaysCount = Math.min(21, completedStudyDates.size);
-  const isTodayStudyCompleted = studyHabits.some((sh) => isHabitCompletedOnDate(sh.id, todayDateStr));
+  const activeStudyHabits = studyHabits.filter((habit) => habit.status === 'active');
+  const pausedStudyHabitsCount = studyHabits.length - activeStudyHabits.length;
+  const isTodayStudyCompleted = activeStudyHabits.some((sh) => isHabitCompletedOnDate(sh.id, todayDateStr));
   const progressPercent = Math.min(100, Math.round((completedDaysCount / 21) * 100));
 
   // Current day count since start
@@ -69,15 +71,25 @@ export const StudyChallengeCard: React.FC<StudyChallengeCardProps> = ({ onOpenNe
 
       // Check if primary study template already exists to prevent duplicate habits
       const primaryTemplate = STUDY_CHALLENGE_TEMPLATES[0];
-      const existingMatch = habits.find(
-        (h) =>
-          h.title.toLowerCase().includes('pomodoro') ||
-          h.title.toLowerCase().includes('study') ||
-          (h.anchor.toLowerCase().includes('laptop') && h.action.toLowerCase().includes('study'))
-      );
+      const matchesPrimaryStudyHabit = (h: HabitStack) =>
+        h.title.toLowerCase().includes('pomodoro') ||
+        h.title.toLowerCase().includes('study') ||
+        (h.anchor.toLowerCase().includes('laptop') && h.action.toLowerCase().includes('study'));
+      const existingMatch = habits.find((h) => h.status === 'active' && matchesPrimaryStudyHabit(h));
+      const pausedMatch = habits.find((h) => h.status === 'paused' && matchesPrimaryStudyHabit(h));
 
       if (existingMatch) {
         addedHabitIds.push(existingMatch.id);
+      } else if (pausedMatch) {
+        const isPremium = userProfile?.plan === 'premium';
+        const activeCount = habits.filter((h) => h.status === 'active').length;
+        if (!isPremium && activeCount >= 3) {
+          setActiveFeedback('Free plan limit reached. Pause an active habit before resuming the study routine.');
+          setTimeout(() => setActiveFeedback(null), 4500);
+          return;
+        }
+        await updateHabit(pausedMatch.id, { status: 'active', pausedReason: '' });
+        addedHabitIds.push(pausedMatch.id);
       } else {
         // Check free plan active limit (3 active habits)
         const isPremium = userProfile?.plan === 'premium';
@@ -290,7 +302,7 @@ export const StudyChallengeCard: React.FC<StudyChallengeCardProps> = ({ onOpenNe
               <span>Your Active Study Stacks</span>
               {studyHabits.length > 0 && (
                 <span className="text-[11px] text-slate-400 font-medium">
-                  {studyHabits.length} study routine{studyHabits.length === 1 ? '' : 's'} linked
+                  {activeStudyHabits.length} active · {pausedStudyHabitsCount} paused
                 </span>
               )}
             </div>
@@ -302,29 +314,41 @@ export const StudyChallengeCard: React.FC<StudyChallengeCardProps> = ({ onOpenNe
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {studyHabits.map((habit) => {
-                  const isDone = isHabitCompletedOnDate(habit.id, todayDateStr);
+                  const isPaused = habit.status !== 'active';
+                  const isDone = !isPaused && isHabitCompletedOnDate(habit.id, todayDateStr);
                   return (
                     <div
                       key={habit.id}
                       className="p-3 rounded-2xl bg-[#FFF8F0] border border-[#F0E6DA] flex items-center justify-between gap-2"
                     >
                       <div className="min-w-0">
-                        <div className="text-xs font-black text-[#152238] truncate">{habit.title}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-xs font-black text-[#152238] truncate">{habit.title}</div>
+                          {isPaused && (
+                            <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[9px] font-black shrink-0">
+                              Paused
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[11px] text-slate-500 font-medium truncate">
                           After {habit.anchor} → {habit.action}
                         </div>
                       </div>
-                      <button
-                        onClick={() => toggleCompletion(habit.id)}
-                        className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black transition-all shrink-0 cursor-pointer ${
-                          isDone
-                            ? 'bg-[#B8E36A] text-[#1E3805] ring-2 ring-[#B8E36A]/50'
-                            : 'bg-white border border-slate-300 text-slate-400 hover:border-[#FF704F]'
-                        }`}
-                        title={isDone ? 'Mark as incomplete' : 'Check off today’s study session'}
-                      >
-                        {isDone ? '✓' : ''}
-                      </button>
+                      {isPaused ? (
+                        <span className="text-[10px] text-slate-400 font-bold shrink-0">Not counted</span>
+                      ) : (
+                        <button
+                          onClick={() => toggleCompletion(habit.id)}
+                          className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black transition-all shrink-0 cursor-pointer ${
+                            isDone
+                              ? 'bg-[#B8E36A] text-[#1E3805] ring-2 ring-[#B8E36A]/50'
+                              : 'bg-white border border-slate-300 text-slate-400 hover:border-[#FF704F]'
+                          }`}
+                          title={isDone ? 'Mark as incomplete' : 'Check off today’s study session'}
+                        >
+                          {isDone ? '✓' : ''}
+                        </button>
+                      )}
                     </div>
                   );
                 })}
