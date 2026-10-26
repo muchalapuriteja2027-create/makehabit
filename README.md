@@ -49,6 +49,10 @@ cp .env.example .env
 | `VITE_BACKEND_URL` | Client | URL of the Render payment backend (defaults to `https://makehabit-twbz.onrender.com`). |
 | `VITE_RAZORPAY_KEY_ID` | Client | Public Razorpay Key ID (e.g., `rzp_test_...`). Safe for frontend consumption. |
 | `RAZORPAY_KEY_SECRET` | Server | Private Razorpay Secret Key. **Must remain strictly on the server** (e.g., Render Environment Variables). Never commit or expose to frontend. |
+| `VITE_CLARITY_PROJECT_ID` | Build/public | Optional Microsoft Clarity project ID. Empty by default; tracking is not injected until configured. |
+| `VITE_GOOGLE_SITE_VERIFICATION` | Build/public | Optional Google Search Console HTML-tag token for the `https://makehabit.me/` URL-prefix property. Empty by default. |
+
+For the deployed site, add `VITE_CLARITY_PROJECT_ID` and `VITE_GOOGLE_SITE_VERIFICATION` under **GitHub → Settings → Secrets and variables → Actions → Variables** (not Secrets; these identifiers appear in the public site HTML). The deployment workflow passes them to Vite at build time. Search Console verification should use the HTML-tag method for the URL-prefix property; the token is inserted into the generated page's `<head>`. Submit the existing sitemap at `https://makehabit.me/sitemap.xml` after verifying ownership. Do not put Razorpay private secrets in Vite variables or the frontend build.
 
 ### 3. Development Commands
 - **Frontend Dev Server**:
