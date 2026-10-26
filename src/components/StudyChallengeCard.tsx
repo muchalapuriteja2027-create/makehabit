@@ -84,23 +84,25 @@ export const StudyChallengeCard: React.FC<StudyChallengeCardProps> = ({ onOpenNe
         const activeCount = habits.filter((h) => h.status === 'active').length;
 
         if (!isPremium && activeCount >= 3) {
-          // If free limit reached, reuse the first active habit or activate study challenge on existing routines
-          setActiveFeedback('Note: Free plan limit is 3 active routines. Using existing habits for challenge tracking!');
-        } else {
-          // Create the primary study stack
-          const newId = await addHabit({
-            title: primaryTemplate.title,
-            anchor: primaryTemplate.anchor,
-            action: primaryTemplate.action,
-            category: 'Work',
-            frequency: 'daily',
-            daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
-            durationMinutes: primaryTemplate.durationMinutes,
-            scheduledTime: '09:00 AM',
-            status: 'active',
-          });
-          addedHabitIds.push(newId);
+          // Don't activate a challenge that cannot record a study habit due to the free-plan limit.
+          setActiveFeedback('Free plan limit reached. Pause an active habit, then start the Study Challenge again.');
+          setTimeout(() => setActiveFeedback(null), 4500);
+          return;
         }
+
+        // Create the primary study stack.
+        const newId = await addHabit({
+          title: primaryTemplate.title,
+          anchor: primaryTemplate.anchor,
+          action: primaryTemplate.action,
+          category: 'Work',
+          frequency: 'daily',
+          daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+          durationMinutes: primaryTemplate.durationMinutes,
+          scheduledTime: '09:00 AM',
+          status: 'active',
+        });
+        addedHabitIds.push(newId);
       }
 
       // Update challenge profile state
