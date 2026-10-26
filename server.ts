@@ -177,9 +177,12 @@ app.get('/', (_req: Request, res: Response) => {
 app.get('/api/razorpay/status', (_req: Request, res: Response) => {
   const { keyId, keySecret, mode, isLive } = getRazorpayCredentials();
   const { adminApp, adminDb } = initFirebaseAdmin();
+  const liveCheckoutReady = isLive && Boolean(adminApp && adminDb);
   res.json({
-    paymentsLive: isLive,
-    liveCheckoutReady: isLive && Boolean(adminApp && adminDb),
+    // "paymentsLive" means the server is ready to accept live checkout, not merely
+    // that live API keys have been placed in the environment.
+    paymentsLive: liveCheckoutReady,
+    liveCheckoutReady,
     mode,
     planProposedPrice: '₹199 one-time',
     hasKeyId: Boolean(keyId),
