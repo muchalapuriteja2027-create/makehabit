@@ -36,6 +36,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
     verified: boolean;
     entitlementGranted?: boolean;
     message?: string;
+    mode?: 'test' | 'live';
+    isTestMode?: boolean;
   } | null>(null);
 
   // Technical details modal state
@@ -62,11 +64,19 @@ export const PricingView: React.FC<PricingViewProps> = ({
     };
   }, []);
 
-  const hasTestKeys = Boolean(backendStatus?.hasKeyId && backendStatus?.hasSecret);
+  const hasPaymentKeys = Boolean(backendStatus?.hasKeyId && backendStatus?.hasSecret);
+  const isLiveMode = backendStatus?.mode === 'live' && backendStatus.paymentsLive;
+  const liveCheckoutReady = Boolean(backendStatus?.liveCheckoutReady);
+  const isLiveCheckoutBlocked = backendStatus?.mode === 'live' && !liveCheckoutReady;
+  const paymentSetupReady = hasPaymentKeys && !isLiveCheckoutBlocked;
 
-  // Main checkout flow: launches Razorpay Checkout directly in Test Mode
+  // Checkout follows the payment mode reported by the server.
   const handleStartCheckout = async () => {
     if (isProcessingCheckout) return;
+    if (!hasPaymentKeys || isLiveCheckoutBlocked) {
+      setCheckoutError('Payment checkout is not ready. Live checkout requires verified Firebase identity and persistent server-side Premium activation.');
+      return;
+    }
 
     if (!currentUser) {
       setShowSignInPrompt(true);
@@ -102,6 +112,10 @@ export const PricingView: React.FC<PricingViewProps> = ({
       if (!activeKey) {
         throw new Error('Public Razorpay Key ID was not returned by the backend.');
       }
+      const checkoutMode = orderRes.mode || backendStatus?.mode || 'test';
+      if (checkoutMode === 'live' && !backendStatus?.liveCheckoutReady) {
+        throw new Error('Live checkout is blocked until secure server-side Premium activation is ready. No payment was started.');
+      }
 
       setCheckoutStatusText('Opening Razorpay Checkout modal...');
 
@@ -116,7 +130,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
         amount: orderRes.amount || 19900,
         currency: orderRes.currency || 'INR',
         name: 'MakeHabit',
-        description: 'Premium Lifetime Pass (Test Mode)',
+        description: checkoutMode === 'live' ? 'MakeHabit Premium Lifetime Pass' : 'MakeHabit Premium Lifetime Pass (Test Mode)',
         order_id: orderRes.orderId,
         prefill: {
           name: userProfile?.displayName || 'MakeHabit Member',
@@ -127,7 +141,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
         },
         notes: {
           plan: 'premium_lifetime',
-          mode: 'test',
+          mode: checkoutMode,
           userId: currentUser.uid,
         },
         handler: async (response: {
@@ -146,17 +160,31 @@ export const PricingView: React.FC<PricingViewProps> = ({
               idToken: freshToken,
             });
 
-            if (verifyRes.success && verifyRes.verified) {
+            const verifiedMode = verifyRes.mode || checkoutMode;
+            const isTestPayment = verifyRes.isTestMode ?? (verifiedMode === 'test');
+
+            if (
+              verifyRes.success &&
+              verifyRes.verified &&
+              (isTestPayment || verifyRes.entitlementGranted === true)
+            ) {
               setVerifiedPayment({
                 orderId: response.razorpay_order_id,
                 paymentId: response.razorpay_payment_id,
                 verified: true,
                 entitlementGranted: Boolean(verifyRes.entitlementGranted),
                 message: verifyRes.message,
+                mode: verifiedMode,
+                isTestMode: isTestPayment,
               });
               setCheckoutStatusText('');
             } else {
-              setCheckoutError(verifyRes.error || 'Cryptographic HMAC signature verification failed.');
+              setCheckoutError(
+                verifyRes.error ||
+                (verifiedMode === 'live'
+                  ? 'Payment returned from Razorpay but Premium activation was not confirmed. Do not pay again; contact support with the payment ID.'
+                  : 'Cryptographic HMAC signature verification failed.')
+              );
             }
           } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : 'Payment verification error';
@@ -211,26 +239,26 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
       {/* Prominent Razorpay Test Mode Notice */}
       <div className={`p-4 sm:p-5 rounded-3xl border flex items-start gap-3.5 shadow-2xs transition-all ${
-        hasTestKeys
+        hasPaymentKeys
           ? 'bg-[#FAFDF5] border-[#B8E36A]'
           : 'bg-[#FFF8EE] border-[#F5DEB3]'
       }`}>
         <div className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 font-black text-sm ${
-          hasTestKeys
+          hasPaymentKeys
             ? 'bg-[#EAF7D5] text-[#1E3805]'
             : 'bg-[#FFE8CC] text-[#B85C00]'
         }`}>
-          {hasTestKeys ? '🧪' : 'ℹ️'}
+          {hasPaymentKeys ? '🧪' : 'ℹ️'}
         </div>
         <div className="space-y-1 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className={`text-xs sm:text-sm font-black ${
-              hasTestKeys ? 'text-[#1E3805]' : 'text-[#8A4600]'
+              hasPaymentKeys ? 'text-[#1E3805]' : 'text-[#8A4600]'
             }`}>
-              {hasTestKeys ? 'Razorpay Test Mode Active' : 'Connecting to Payment Backend'}
+              {hasPaymentKeys ? 'Razorpay Test Mode Active' : 'Connecting to Payment Backend'}
             </span>
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ${
-              hasTestKeys
+              hasPaymentKeys
                 ? 'bg-[#EAF7D5] text-[#1E3805] border border-[#B8E36A]'
                 : 'bg-[#FFE8CC] text-[#8A4600]'
             }`}>
@@ -238,7 +266,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
             </span>
           </div>
           <p className="text-xs text-slate-600 leading-relaxed font-medium">
-            {hasTestKeys
+            {hasPaymentKeys
               ? 'Render backend is connected with verified Razorpay Test Mode keys. Clicking "Upgrade to Premium" will open the official Razorpay test checkout and test cryptographic HMAC-SHA256 signature verification.'
               : 'Verifying connection to Render backend at https://makehabit-twbz.onrender.com...'}
           </p>
@@ -474,9 +502,9 @@ export const PricingView: React.FC<PricingViewProps> = ({
             </button>
 
             <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500 font-semibold text-center">
-              <span className={`w-2 h-2 rounded-full ${hasTestKeys ? 'bg-[#B8E36A]' : 'bg-amber-400'}`}></span>
+              <span className={`w-2 h-2 rounded-full ${hasPaymentKeys ? 'bg-[#B8E36A]' : 'bg-amber-400'}`}></span>
               <span>
-                {hasTestKeys
+                {hasPaymentKeys
                   ? 'Test Mode Active — Launches official Razorpay test checkout'
                   : 'Backend keys loading...'}
               </span>
