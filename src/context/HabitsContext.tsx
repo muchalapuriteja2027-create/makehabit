@@ -200,6 +200,8 @@ export const HabitsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       // Habits due on that day
       const dueHabits = habits.filter((h) => {
+        // Paused routines should not reduce adherence or break streaks.
+        if (h.status !== 'active') return false;
         if (h.frequency === 'daily') return true;
         if (h.frequency === 'weekdays') return dayOfWeek >= 1 && dayOfWeek <= 5;
         return h.daysOfWeek.includes(dayOfWeek);
@@ -246,6 +248,8 @@ export const HabitsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const dow = d.getDay();
 
       const due = habits.filter((h) => {
+        // Paused routines should not reduce adherence or break streaks.
+        if (h.status !== 'active') return false;
         if (h.frequency === 'daily') return true;
         if (h.frequency === 'weekdays') return dow >= 1 && dow <= 5;
         return h.daysOfWeek.includes(dow);
@@ -286,6 +290,8 @@ export const HabitsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const dow = d.getDay();
 
       const due = habits.filter((h) => {
+        // Paused routines should not reduce adherence or break streaks.
+        if (h.status !== 'active') return false;
         if (h.frequency === 'daily') return true;
         if (h.frequency === 'weekdays') return dow >= 1 && dow <= 5;
         return h.daysOfWeek.includes(dow);
