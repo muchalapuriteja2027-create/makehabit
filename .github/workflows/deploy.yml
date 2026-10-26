@@ -33,6 +33,9 @@ jobs:
         run: npm install --legacy-peer-deps
 
       - name: Build Vite application
+        env:
+          VITE_CLARITY_PROJECT_ID: ${{ vars.VITE_CLARITY_PROJECT_ID }}
+          VITE_GOOGLE_SITE_VERIFICATION: ${{ vars.VITE_GOOGLE_SITE_VERIFICATION }}
         run: npm run build
 
       - name: Upload Pages artifact
