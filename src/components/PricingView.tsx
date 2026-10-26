@@ -237,38 +237,52 @@ export const PricingView: React.FC<PricingViewProps> = ({
         </button>
       </div>
 
-      {/* Prominent Razorpay Test Mode Notice */}
+      {/* Payment mode and readiness status */}
       <div className={`p-4 sm:p-5 rounded-3xl border flex items-start gap-3.5 shadow-2xs transition-all ${
-        hasPaymentKeys
+        paymentSetupReady
           ? 'bg-[#FAFDF5] border-[#B8E36A]'
           : 'bg-[#FFF8EE] border-[#F5DEB3]'
       }`}>
         <div className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 font-black text-sm ${
-          hasPaymentKeys
+          paymentSetupReady
             ? 'bg-[#EAF7D5] text-[#1E3805]'
             : 'bg-[#FFE8CC] text-[#B85C00]'
         }`}>
-          {hasPaymentKeys ? '🧪' : 'ℹ️'}
+          {isLiveMode ? '💳' : hasPaymentKeys ? '🧪' : 'ℹ️'}
         </div>
         <div className="space-y-1 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className={`text-xs sm:text-sm font-black ${
-              hasPaymentKeys ? 'text-[#1E3805]' : 'text-[#8A4600]'
+              paymentSetupReady ? 'text-[#1E3805]' : 'text-[#8A4600]'
             }`}>
-              {hasPaymentKeys ? 'Razorpay Test Mode Active' : 'Connecting to Payment Backend'}
+              {!hasPaymentKeys
+                ? 'Connecting to Payment Backend'
+                : isLiveCheckoutBlocked
+                  ? 'Live Checkout Blocked — Secure Activation Not Ready'
+                  : isLiveMode
+                    ? 'Razorpay Live Mode Active'
+                    : 'Razorpay Test Mode Active'}
             </span>
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ${
-              hasPaymentKeys
+              paymentSetupReady
                 ? 'bg-[#EAF7D5] text-[#1E3805] border border-[#B8E36A]'
                 : 'bg-[#FFE8CC] text-[#8A4600]'
             }`}>
-              Test Mode · No Real Money Collected
+              {isLiveMode
+                ? liveCheckoutReady
+                  ? 'Live Mode · Real payments can be processed'
+                  : 'Live Mode · Checkout blocked until setup is complete'
+                : 'Test Mode · No real money collected'}
             </span>
           </div>
           <p className="text-xs text-slate-600 leading-relaxed font-medium">
-            {hasPaymentKeys
-              ? 'Render backend is connected with verified Razorpay Test Mode keys. Clicking "Upgrade to Premium" will open the official Razorpay test checkout and test cryptographic HMAC-SHA256 signature verification.'
-              : 'Verifying connection to Render backend at https://makehabit-twbz.onrender.com...'}
+            {!hasPaymentKeys
+              ? 'Verifying connection to the Render payment backend at https://makehabit-twbz.onrender.com...'
+              : isLiveCheckoutBlocked
+                ? 'Live keys are selected, but checkout is disabled until server-side Firebase identity verification and durable Premium activation are available.'
+                : isLiveMode
+                  ? 'Live checkout is configured. A captured payment must be verified and Premium access durably saved before success is shown.'
+                  : 'Render is connected in Razorpay Test Mode. Checkout simulates payment, verifies the signature, and does not grant Premium or collect real money.'}
           </p>
         </div>
 
@@ -481,7 +495,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
           <div className="pt-6 space-y-2">
             <button
               onClick={handleStartCheckout}
-              disabled={isProcessingCheckout || loadingStatus}
+              disabled={isProcessingCheckout || loadingStatus || !hasPaymentKeys || isLiveCheckoutBlocked}
               className={`w-full py-4 px-6 rounded-2xl tactile-coral text-white text-sm font-black shadow-lg flex items-center justify-center gap-2 transition-all ${
                 isProcessingCheckout ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'
               }`}
@@ -502,11 +516,15 @@ export const PricingView: React.FC<PricingViewProps> = ({
             </button>
 
             <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500 font-semibold text-center">
-              <span className={`w-2 h-2 rounded-full ${hasPaymentKeys ? 'bg-[#B8E36A]' : 'bg-amber-400'}`}></span>
+              <span className={`w-2 h-2 rounded-full ${paymentSetupReady ? 'bg-[#B8E36A]' : 'bg-amber-400'}`}></span>
               <span>
-                {hasPaymentKeys
-                  ? 'Test Mode Active — Launches official Razorpay test checkout'
-                  : 'Backend keys loading...'}
+                {!hasPaymentKeys
+                  ? 'Payment backend credentials unavailable'
+                  : isLiveCheckoutBlocked
+                    ? 'Live checkout blocked until secure Premium activation is configured'
+                    : isLiveMode
+                      ? 'Live Mode — real payments'
+                      : 'Test Mode — no real payments'}
               </span>
             </div>
           </div>
@@ -590,7 +608,9 @@ export const PricingView: React.FC<PricingViewProps> = ({
           <div className="p-4 rounded-2xl bg-[#FFF8F0] border border-[#F0E6DA] space-y-1.5">
             <h3 className="text-sm font-black text-[#152238]">What happens during this test checkout?</h3>
             <p className="text-xs text-slate-600 font-medium leading-relaxed">
-              The checkout runs in Razorpay Test Mode using your Render backend. You can use any dummy card or UPI test method. No real payment is collected, and signatures are verified cryptographically via server HMAC.
+              {isLiveMode
+                ? 'Live checkout processes real payments. Premium access is granted only after Razorpay confirms a captured payment and the server saves the entitlement securely.'
+                : 'The checkout runs in Razorpay Test Mode using your Render backend. Use Razorpay test payment details. No real payment is collected, and Premium access is not granted by a test payment.'}
             </p>
           </div>
 
@@ -604,7 +624,9 @@ export const PricingView: React.FC<PricingViewProps> = ({
           <div className="p-4 rounded-2xl bg-[#FFF8F0] border border-[#F0E6DA] space-y-1.5">
             <h3 className="text-sm font-black text-[#152238]">What is the refund policy?</h3>
             <p className="text-xs text-slate-600 font-medium leading-relaxed">
-              Because transactions are currently run in Test Mode, no real funds are processed. Comprehensive refund policies will be posted prior to opening live commercial purchases.
+              {isLiveMode
+                ? 'For a live purchase, contact support promptly if a payment is captured but Premium access is not reflected. Keep the payment ID for reconciliation.'
+                : 'Because transactions are in Test Mode, no real funds are processed. A commercial refund policy must be published before accepting live purchases.'}
             </p>
           </div>
 
@@ -669,17 +691,25 @@ export const PricingView: React.FC<PricingViewProps> = ({
                   ? 'bg-[#EAF7D5] text-[#1E3805] border-[#B8E36A]'
                   : 'bg-amber-50 text-amber-800 border-amber-300'
               }`}>
-                {verifiedPayment.entitlementGranted ? 'Lifetime Entitlement Active' : 'HMAC-SHA256 Signature Verified'}
+                {verifiedPayment.entitlementGranted
+                  ? 'Lifetime Entitlement Active'
+                  : verifiedPayment.isTestMode
+                    ? 'Test Payment Verified — Premium Not Granted'
+                    : 'Payment Activation Needs Support'}
               </span>
               <h3 className="text-xl font-black text-[#152238]">
                 {verifiedPayment.entitlementGranted
                   ? 'MakeHabit Premium Activated! 🎉'
-                  : 'Razorpay Test Payment Verified!'}
+                  : verifiedPayment.isTestMode
+                    ? 'Razorpay Test Payment Verified!'
+                    : 'Premium Activation Needs Support'}
               </h3>
               <p className="text-xs sm:text-sm text-slate-600 font-medium leading-relaxed">
                 {verifiedPayment.entitlementGranted
                   ? 'Your ₹199 purchase was cryptographically verified and your account is upgraded to MakeHabit Premium Lifetime access.'
-                  : 'Your ₹199 simulated payment was confirmed against Razorpay. No real money was charged, and Premium remains inactive in Test Mode.'}
+                  : verifiedPayment.isTestMode
+                    ? 'Your ₹199 simulated payment was confirmed against Razorpay. No real money was charged, and Premium remains inactive in Test Mode.'
+                    : 'Payment verification did not complete Premium activation. Do not pay again; contact support with the payment ID.'}
               </p>
             </div>
 
@@ -699,7 +729,11 @@ export const PricingView: React.FC<PricingViewProps> = ({
               <div className="flex justify-between items-center text-slate-600">
                 <span className="font-bold">Server Entitlement:</span>
                 <span className={`font-bold ${verifiedPayment.entitlementGranted ? 'text-[#1E3805]' : 'text-amber-800'}`}>
-                  {verifiedPayment.entitlementGranted ? 'Granted in Firestore ✓' : 'Not granted in Test Mode'}
+                  {verifiedPayment.entitlementGranted
+                    ? 'Granted in Firestore ✓'
+                    : verifiedPayment.isTestMode
+                      ? 'Not granted in Test Mode'
+                      : 'Needs support reconciliation'}
                 </span>
               </div>
             </div>
@@ -711,7 +745,9 @@ export const PricingView: React.FC<PricingViewProps> = ({
                 </span>
               ) : (
                 <span>
-                  <strong>Test Mode Notice:</strong> This was a simulated transaction only. It does not grant lifetime Premium access. Secure live checkout remains disabled until persistent entitlement activation is configured and tested.
+                  {verifiedPayment.isTestMode
+                    ? <><strong>Test Mode Notice:</strong> This was a simulated transaction only. It does not grant lifetime Premium access.</>
+                    : <><strong>Support Notice:</strong> Payment was not confirmed as a completed Premium activation. Do not retry payment; contact support for reconciliation.</>}
                 </span>
               )}
             </div>
