@@ -138,7 +138,7 @@ app.get('/health', (_req: Request, res: Response) => {
   res.status(200).json({
     status: 'ok',
     service: 'makehabit-api',
-    adminConfigured: Boolean(adminApp),
+    adminConfigured: Boolean(adminApp && adminDb),
     timestamp: new Date().toISOString(),
   });
 });
@@ -168,7 +168,7 @@ app.get('/api/razorpay/status', (_req: Request, res: Response) => {
     hasSecret: Boolean(keySecret),
     keyId: keyId || null,
     keyIdPreview: keyId ? `${keyId.substring(0, 8)}...` : null,
-    adminConfigured: Boolean(adminApp),
+    adminConfigured: Boolean(adminApp && adminDb),
   });
 });
 
