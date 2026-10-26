@@ -50,7 +50,7 @@ jobs:
                 .map((entry) => entry.title || entry.url || 'advisory')
                 .join('; ');
               console.log(
-                `${String(item.severity).toUpperCase()} ${name} | direct=${item.isDirect} | range=${item.range} | fixAvailable=${JSON.stringify(item.fixAvailable)} | ${advisories}`
+                `${String(item.severity).toUpperCase()} ${name} | direct=${item.isDirect} | range=${item.range} | fixAvailable=${JSON.stringify(item.fixAvailable)} | via=${JSON.stringify(item.via)} | ${advisories}`
               );
             }
           } catch (error) {
