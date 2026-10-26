@@ -50,7 +50,8 @@ cp .env.example .env
 | `VITE_RAZORPAY_KEY_ID` | Client | Public Razorpay Key ID. Never use a private secret here. |
 | `RAZORPAY_KEY_SECRET` | Server | Razorpay test secret, stored only on the backend. Never commit it or expose it to the frontend. |
 | `RAZORPAY_MODE` | Server | Keep set to `test` until live payments and entitlement activation are fully verified. |
-| `FIREBASE_SERVICE_ACCOUNT` | Server | Optional service-account JSON required for persistent server-side Premium activation. Store only in Render environment variables. |
+| `RAZORPAY_WEBHOOK_SECRET` | Server | Separate secret for validating Razorpay webhook signatures. Configure only in Render and match the value in Razorpay Dashboard. |
+| `FIREBASE_SERVICE_ACCOUNT` | Server | Optional service-account JSON required for persistent server-side Premium activation and webhook event storage. Store only in Render environment variables. |
 | `FIREBASE_PROJECT_ID` / `FIRESTORE_DATABASE_ID` | Server | Firebase project and named Firestore database identifiers used by the backend. |
 | `VITE_GOOGLE_SITE_VERIFICATION` | Build/public | Optional Search Console HTML-tag token for URL-prefix verification. Not needed when the Domain property is verified through DNS. |
 
@@ -167,6 +168,18 @@ To enable automatic server-side Firestore entitlement activation on your Render 
 4. Confirm `/health` reports `adminConfigured: true` and run a full test before any live payment is enabled.
 
 **Important:** If the project does not permit creating service-account keys, do not upgrade billing or weaken Firestore rules just to bypass that restriction. Ask the project owner/administrator for an approved credential or keep Razorpay in Test Mode. Never share the JSON in chat or commit it to GitHub.
+
+### Razorpay Webhook Event Tracking
+
+The backend exposes `POST https://makehabit-twbz.onrender.com/api/razorpay/webhook` for authenticated Razorpay webhook events.
+
+1. Configure a separate webhook secret in Razorpay Dashboard -> Account & Settings -> Webhooks.
+2. Use `https://makehabit-twbz.onrender.com/api/razorpay/webhook` as the endpoint and select relevant events such as `payment.captured`, `payment.failed`, `order.paid`, and refund events.
+3. Set the same secret as `RAZORPAY_WEBHOOK_SECRET` in Render Environment Variables. It is different from `RAZORPAY_KEY_SECRET` and from any credential used by Shipped.money.
+4. The receiver verifies the signature against the original raw request body, deduplicates events, and stores minimal event metadata in the server-only `razorpayWebhookEvents` collection. It never grants Premium directly from a webhook payload.
+5. The receiver returns a retryable error until Firebase Admin can persist the event. Verify the endpoint and delivery in Razorpay's webhook dashboard after deployment.
+
+**Shipped.money is a separate integration.** This MakeHabit webhook endpoint does not connect Shipped.money by itself. Complete the Razorpay source connection inside Shipped.money using an authorized credential in that dashboard, and do not paste any private credential into chat or commit it to GitHub.
 
 ### Transitioning to Razorpay Live Mode
 
