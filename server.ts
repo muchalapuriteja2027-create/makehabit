@@ -619,7 +619,10 @@ app.post('/api/razorpay/webhook', async (req: Request, res: Response) => {
           ? order.id
           : null,
       paymentStatus: typeof payment?.status === 'string' ? payment.status : null,
-      amountPaise: Number.isSafeInteger(payment?.amount) ? payment?.amount : null,
+      amountPaise:
+      typeof payment?.amount === 'number' && Number.isSafeInteger(payment.amount)
+        ? payment.amount
+        : null,
       currency: typeof payment?.currency === 'string' ? payment.currency : null,
       refundId: typeof refund?.id === 'string' ? refund.id : null,
       refundStatus: typeof refund?.status === 'string' ? refund.status : null,
