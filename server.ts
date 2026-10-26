@@ -29,9 +29,14 @@ const initFirebaseAdmin = () => {
         const decoded = Buffer.from(serviceAccountRaw, 'base64').toString('utf-8');
         serviceAccount = JSON.parse(decoded);
       }
+      if (serviceAccount.project_id && serviceAccount.project_id !== projectId) {
+        throw new Error(
+          `FIREBASE_SERVICE_ACCOUNT project ${serviceAccount.project_id} does not match FIREBASE_PROJECT_ID ${projectId}.`
+        );
+      }
       adminApp = initializeApp({
         credential: cert(serviceAccount),
-        projectId: serviceAccount.project_id || projectId,
+        projectId,
       });
       adminDb = getFirestore(adminApp, databaseId);
       console.log('Firebase Admin SDK initialized successfully with service account.');
@@ -91,7 +96,17 @@ app.use((req: Request, res: Response, next) => {
 
 // Payment API only needs small, uncompressed JSON bodies. Reject compressed
 // bodies and cap payload size to mitigate body-parser decompression DoS advisories.
-app.use(express.json({ inflate: false, limit: '32kb' }));
+type RequestWithRawBody = Request & { rawBody?: Buffer };
+
+app.use(express.json({
+  inflate: false,
+  limit: '32kb',
+  // Razorpay signs the exact HTTP body bytes; retaining raw bytes is required
+  // for safe webhook signature verification.
+  verify: (req, _res, buf) => {
+    (req as RequestWithRawBody).rawBody = Buffer.from(buf);
+  },
+}));
 
 // Helper: Determine credentials based on mode (Live vs Test)
 const getRazorpayCredentials = () => {
@@ -161,9 +176,13 @@ app.get('/', (_req: Request, res: Response) => {
  */
 app.get('/api/razorpay/status', (_req: Request, res: Response) => {
   const { keyId, keySecret, mode, isLive } = getRazorpayCredentials();
-  const { adminApp } = initFirebaseAdmin();
+  const { adminApp, adminDb } = initFirebaseAdmin();
+  const liveCheckoutReady = isLive && Boolean(adminApp && adminDb);
   res.json({
-    paymentsLive: isLive,
+    // "paymentsLive" means the server is ready to accept live checkout, not merely
+    // that live API keys have been placed in the environment.
+    paymentsLive: liveCheckoutReady,
+    liveCheckoutReady,
     mode,
     planProposedPrice: '₹199 one-time',
     hasKeyId: Boolean(keyId),
@@ -410,6 +429,7 @@ app.post('/api/razorpay/verify-payment', async (req: Request, res: Response) => 
         success: true,
         verified: true,
         entitlementGranted: false,
+        isTestMode: true,
         paymentId: razorpay_payment_id,
         orderId: razorpay_order_id,
         mode,
@@ -476,6 +496,7 @@ app.post('/api/razorpay/verify-payment', async (req: Request, res: Response) => 
             verified: true,
             entitlementGranted: true,
             isDuplicate: true,
+            isTestMode: false,
             message: 'Payment already processed and verified.',
             paymentId: razorpay_payment_id,
             orderId: razorpay_order_id,
@@ -488,8 +509,20 @@ app.post('/api/razorpay/verify-payment', async (req: Request, res: Response) => 
         entitlementMessage = 'Payment verified and Premium Lifetime access activated in Firestore!';
       } catch (adminErr) {
         console.error('Error activating Firestore entitlement via Admin SDK:', adminErr);
-        entitlementMessage =
-          'HMAC payment verified, but automatic Firestore update encountered a permission error. Entitlement will be updated manually.';
+        // Never report a successful live checkout if the durable entitlement
+        // transaction failed. The payment may already be captured: tell the
+        // user not to pay again and require support/reconciliation.
+        res.status(500).json({
+          success: false,
+          verified: true,
+          entitlementGranted: false,
+          mode,
+          isTestMode: false,
+          paymentId: razorpay_payment_id,
+          orderId: razorpay_order_id,
+          error: 'Razorpay confirmed the payment, but Premium could not be saved. Do not retry or pay again. Contact MakeHabit support with the payment ID.',
+        });
+        return;
       }
     } else if (!adminDb) {
       entitlementMessage =
@@ -500,6 +533,7 @@ app.post('/api/razorpay/verify-payment', async (req: Request, res: Response) => 
       success: true,
       verified: true,
       entitlementGranted,
+      isTestMode: false,
       message: entitlementMessage,
       paymentId: razorpay_payment_id,
       orderId: razorpay_order_id,
@@ -508,6 +542,113 @@ app.post('/api/razorpay/verify-payment', async (req: Request, res: Response) => 
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error verifying payment';
     res.status(500).json({ success: false, error: message });
+  }
+});
+
+/**
+ * Razorpay webhook receiver for server-side event tracking.
+ *
+ * Configure the same webhook secret in the Razorpay Dashboard and Render's
+ * RAZORPAY_WEBHOOK_SECRET environment variable. This endpoint records only
+ * minimal payment metadata; it does not trust unsigned events or grant Premium
+ * directly. Razorpay's signed payment API verification remains the entitlement
+ * authority. The event log is server-only under the default-deny Firestore rules.
+ */
+app.post('/api/razorpay/webhook', async (req: Request, res: Response) => {
+  try {
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      res.status(503).json({
+        success: false,
+        error: 'Razorpay webhook secret is not configured on the backend.',
+      });
+      return;
+    }
+
+    const rawBody = (req as RequestWithRawBody).rawBody;
+    const signature = req.header('x-razorpay-signature') || '';
+    if (!rawBody || !/^[a-f0-9]{64}$/i.test(signature)) {
+      res.status(400).json({ success: false, error: 'Missing or invalid webhook signature/body.' });
+      return;
+    }
+
+    const expectedSignature = crypto.createHmac('sha256', webhookSecret).update(rawBody).digest();
+    const receivedSignature = Buffer.from(signature, 'hex');
+    if (
+      receivedSignature.length !== expectedSignature.length ||
+      !crypto.timingSafeEqual(receivedSignature, expectedSignature)
+    ) {
+      res.status(401).json({ success: false, error: 'Invalid Razorpay webhook signature.' });
+      return;
+    }
+
+    const body = req.body as {
+      event?: unknown;
+      created_at?: unknown;
+      payload?: Record<string, { entity?: Record<string, unknown> }>;
+    };
+    if (typeof body?.event !== 'string' || !body.event.trim()) {
+      res.status(400).json({ success: false, error: 'Webhook event type is missing.' });
+      return;
+    }
+
+    const { adminDb } = initFirebaseAdmin();
+    if (!adminDb) {
+      res.status(503).json({
+        success: false,
+        error: 'Verified webhook cannot be persisted yet because Firebase Admin is not configured.',
+      });
+      return;
+    }
+
+    const suppliedEventId = req.header('x-razorpay-event-id') || '';
+    const eventDocumentId = /^[A-Za-z0-9_-]{1,128}$/.test(suppliedEventId)
+      ? suppliedEventId
+      : crypto.createHash('sha256').update(rawBody).digest('hex');
+
+    const payload = body.payload || {};
+    const payment = payload.payment?.entity || payload['payment.captured']?.entity || payload['payment.failed']?.entity;
+    const order = payload.order?.entity || payload['order.paid']?.entity;
+    const refund = payload.refund?.entity || payload['refund.created']?.entity || payload['refund.processed']?.entity;
+
+    const eventRecord = {
+      eventId: eventDocumentId,
+      providerEventId: suppliedEventId || null,
+      eventType: body.event.trim().slice(0, 120),
+      signatureVerified: true,
+      receivedAt: new Date().toISOString(),
+      providerCreatedAt: typeof body.created_at === 'number'
+        ? new Date(body.created_at * 1000).toISOString()
+        : null,
+      paymentId: typeof payment?.id === 'string' ? payment.id : null,
+      orderId: typeof payment?.order_id === 'string'
+        ? payment.order_id
+        : typeof order?.id === 'string'
+          ? order.id
+          : null,
+      paymentStatus: typeof payment?.status === 'string' ? payment.status : null,
+      amountPaise:
+      typeof payment?.amount === 'number' && Number.isSafeInteger(payment.amount)
+        ? payment.amount
+        : null,
+      currency: typeof payment?.currency === 'string' ? payment.currency : null,
+      refundId: typeof refund?.id === 'string' ? refund.id : null,
+      refundStatus: typeof refund?.status === 'string' ? refund.status : null,
+      processed: true,
+    };
+
+    const eventRef = adminDb.doc(`razorpayWebhookEvents/${eventDocumentId}`);
+    const wasDuplicate = await adminDb.runTransaction(async (transaction: Transaction) => {
+      const existing = await transaction.get(eventRef);
+      if (existing.exists) return true;
+      transaction.create(eventRef, eventRecord);
+      return false;
+    });
+
+    res.status(200).json({ success: true, duplicate: wasDuplicate });
+  } catch (error: unknown) {
+    console.error('Razorpay webhook processing failed:', error);
+    res.status(500).json({ success: false, error: 'Webhook processing failed.' });
   }
 });
 

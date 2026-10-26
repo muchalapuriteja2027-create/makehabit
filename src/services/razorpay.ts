@@ -8,6 +8,8 @@
 
 export interface RazorpayStatusResponse {
   paymentsLive: boolean;
+  liveCheckoutReady?: boolean;
+  adminConfigured?: boolean;
   mode: 'test' | 'live';
   planProposedPrice: string;
   hasKeyId: boolean;
@@ -24,6 +26,7 @@ export interface RazorpayOrderResponse {
   keyId?: string;
   error?: string;
   isConfigured?: boolean;
+  mode?: 'test' | 'live';
 }
 
 export interface RazorpayPaymentSuccessResult {
@@ -36,6 +39,7 @@ export interface VerifyPaymentResponse {
   success: boolean;
   verified?: boolean;
   entitlementGranted?: boolean;
+  isTestMode?: boolean;
   isDuplicate?: boolean;
   message?: string;
   paymentId?: string;
