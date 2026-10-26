@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { initializeApp, cert, applicationDefault, App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { getFirestore, Firestore } from 'firebase-admin/firestore';
+import { getFirestore, Firestore, Transaction } from 'firebase-admin/firestore';
 
 dotenv.config();
 
@@ -191,20 +191,34 @@ app.post('/api/razorpay/create-order', async (req: Request, res: Response) => {
     }
 
     const { userId, userEmail } = req.body;
-    const authHeader = req.headers.authorization;
-    const verifiedUser = await verifyFirebaseToken(authHeader);
+    const verifiedUser = await verifyFirebaseToken(req.headers.authorization);
 
-    // If ID token was provided, enforce that token UID matches requested userId
-    if (verifiedUser && userId && verifiedUser.uid !== userId) {
+    if (mode === 'live' && !verifiedUser) {
+      res.status(401).json({
+        success: false,
+        error: 'Live checkout requires a verified Google sign-in.',
+      });
+      return;
+    }
+
+    if (!userId || userId === 'guest' || (verifiedUser && verifiedUser.uid !== userId)) {
       res.status(403).json({
         success: false,
-        error: 'Authenticated user does not match the requested order userId.',
+        error: 'A signed-in account matching the requested order userId is required.',
+      });
+      return;
+    }
+
+    const { adminDb } = initFirebaseAdmin();
+    if (mode === 'live' && !adminDb) {
+      res.status(503).json({
+        success: false,
+        error: 'Live checkout is disabled until secure server-side Premium activation is configured.',
       });
       return;
     }
 
     // Check if user is already Premium in Firestore
-    const { adminDb } = initFirebaseAdmin();
     if (adminDb && userId) {
       try {
         const userDoc = await adminDb.doc(`users/${userId}`).get();
@@ -221,7 +235,7 @@ app.post('/api/razorpay/create-order', async (req: Request, res: Response) => {
     }
 
     const amountInPaise = 19900; // Fixed ₹199.00 in paise
-    const effectiveUserId = verifiedUser?.uid || userId || 'guest';
+    const effectiveUserId = verifiedUser?.uid || userId;
     const receiptId = `rcpt_${effectiveUserId.substring(0, 10)}_${Date.now()}`;
 
     // Call Razorpay API with HTTP Basic Auth
@@ -297,6 +311,24 @@ app.post('/api/razorpay/verify-payment', async (req: Request, res: Response) => 
       return;
     }
 
+    const verifiedUser = await verifyFirebaseToken(req.headers.authorization);
+    if (mode === 'live' && !verifiedUser) {
+      res.status(401).json({
+        success: false,
+        verified: false,
+        error: 'Live payment verification requires a verified Google sign-in.',
+      });
+      return;
+    }
+    if (!userId || userId === 'guest' || (verifiedUser && verifiedUser.uid !== userId)) {
+      res.status(403).json({
+        success: false,
+        verified: false,
+        error: 'Payment verification failed: authenticated user does not match the order user.',
+      });
+      return;
+    }
+
     // Expected signature: HMAC SHA-256 of order_id + "|" + payment_id
     const generatedSignature = crypto
       .createHmac('sha256', keySecret)
@@ -316,31 +348,127 @@ app.post('/api/razorpay/verify-payment', async (req: Request, res: Response) => 
       return;
     }
 
-    // Verify token UID matches userId if auth header provided
-    const authHeader = req.headers.authorization;
-    const verifiedUser = await verifyFirebaseToken(authHeader);
-    if (verifiedUser && userId && verifiedUser.uid !== userId) {
-      res.status(403).json({
+    // Confirm with Razorpay itself that the signed order belongs to this user,
+    // has the fixed product price, and was actually captured. A valid HMAC alone
+    // is not sufficient to grant an entitlement to a client-supplied user ID.
+    const { keyId } = getRazorpayCredentials();
+    const razorpayAuth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+    const razorpayHeaders = { Authorization: `Basic ${razorpayAuth}` };
+
+    const [orderResponse, paymentResponse] = await Promise.all([
+      fetch(`https://api.razorpay.com/v1/orders/${encodeURIComponent(razorpay_order_id)}`, {
+        method: 'GET',
+        headers: razorpayHeaders,
+      }),
+      fetch(`https://api.razorpay.com/v1/payments/${encodeURIComponent(razorpay_payment_id)}`, {
+        method: 'GET',
+        headers: razorpayHeaders,
+      }),
+    ]);
+
+    if (!orderResponse.ok || !paymentResponse.ok) {
+      res.status(502).json({
         success: false,
         verified: false,
-        error: 'Payment verification failed: Token identity mismatch.',
+        error: 'Could not confirm the order and captured payment with Razorpay.',
+      });
+      return;
+    }
+
+    const order = await orderResponse.json();
+    const payment = await paymentResponse.json();
+
+    const orderMatches = order.id === razorpay_order_id
+      && order.amount === 19900
+      && order.currency === 'INR'
+      && order.status === 'paid'
+      && order.notes?.plan === 'premium_lifetime'
+      && order.notes?.userId === (verifiedUser?.uid || userId)
+      && order.notes?.mode === mode;
+    const paymentMatches = payment.id === razorpay_payment_id
+      && payment.order_id === razorpay_order_id
+      && payment.amount === 19900
+      && payment.currency === 'INR'
+      && payment.status === 'captured'
+      && payment.captured === true;
+
+    if (!orderMatches || !paymentMatches) {
+      res.status(400).json({
+        success: false,
+        verified: false,
+        error: 'Razorpay did not confirm a captured ₹199 payment for this account and plan.',
+      });
+      return;
+    }
+
+    // Test transactions verify the checkout flow only. Never grant production
+    // Premium access or write a payment receipt for a Test Mode transaction.
+    if (mode === 'test') {
+      res.json({
+        success: true,
+        verified: true,
+        entitlementGranted: false,
+        paymentId: razorpay_payment_id,
+        orderId: razorpay_order_id,
+        mode,
+        message: 'Test payment verified. Premium was not activated because this is Test Mode.',
       });
       return;
     }
 
     const effectiveUid = verifiedUser?.uid || userId;
     const { adminDb } = initFirebaseAdmin();
+    if (!adminDb) {
+      res.status(503).json({
+        success: false,
+        verified: true,
+        entitlementGranted: false,
+        error: 'Payment was verified, but secure Premium activation is unavailable. Contact support before retrying payment.',
+      });
+      return;
+    }
 
     let entitlementGranted = false;
     let entitlementMessage = 'Payment signature verified successfully.';
 
     if (adminDb && effectiveUid && effectiveUid !== 'guest') {
       try {
-        // Prevent duplicate activations
+        // Save the receipt and activate Premium atomically. A retry is safe and
+        // cannot report success for a payment recorded against another account.
         const paymentDocRef = adminDb.doc(`payments/${razorpay_payment_id}`);
-        const existingPayment = await paymentDocRef.get();
+        const userDocRef = adminDb.doc(`users/${effectiveUid}`);
+        const activationResult = await adminDb.runTransaction(async (transaction: Transaction) => {
+          const existingPayment = await transaction.get(paymentDocRef);
+          if (existingPayment.exists && existingPayment.data()?.status === 'captured') {
+            const existingData = existingPayment.data();
+            if (existingData?.userId !== effectiveUid || existingData?.orderId !== razorpay_order_id) {
+              throw new Error('Payment ID is already associated with a different account or order.');
+            }
+            return 'duplicate' as const;
+          }
 
-        if (existingPayment.exists && existingPayment.data()?.status === 'captured') {
+          const now = new Date().toISOString();
+          transaction.set(paymentDocRef, {
+            orderId: razorpay_order_id,
+            paymentId: razorpay_payment_id,
+            userId: effectiveUid,
+            amount: 19900,
+            currency: 'INR',
+            mode,
+            status: 'captured',
+            plan: 'premium',
+            verifiedAt: now,
+          });
+          transaction.set(userDocRef, {
+            plan: 'premium',
+            premiumActivatedAt: now,
+            premiumPaymentId: razorpay_payment_id,
+            updatedAt: now,
+          }, { merge: true });
+          return 'granted' as const;
+        });
+
+        if (activationResult === 'duplicate') {
           res.json({
             success: true,
             verified: true,
@@ -349,34 +477,10 @@ app.post('/api/razorpay/verify-payment', async (req: Request, res: Response) => 
             message: 'Payment already processed and verified.',
             paymentId: razorpay_payment_id,
             orderId: razorpay_order_id,
+            mode,
           });
           return;
         }
-
-        // Store payment receipt record
-        await paymentDocRef.set({
-          orderId: razorpay_order_id,
-          paymentId: razorpay_payment_id,
-          userId: effectiveUid,
-          amount: 19900,
-          currency: 'INR',
-          mode,
-          status: 'captured',
-          plan: 'premium',
-          verifiedAt: new Date().toISOString(),
-        });
-
-        // Activate Premium Lifetime directly on the user's document
-        const userDocRef = adminDb.doc(`users/${effectiveUid}`);
-        await userDocRef.set(
-          {
-            plan: 'premium',
-            premiumActivatedAt: new Date().toISOString(),
-            premiumPaymentId: razorpay_payment_id,
-            updatedAt: new Date().toISOString(),
-          },
-          { merge: true }
-        );
 
         entitlementGranted = true;
         entitlementMessage = 'Payment verified and Premium Lifetime access activated in Firestore!';

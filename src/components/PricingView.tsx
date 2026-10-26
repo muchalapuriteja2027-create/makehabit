@@ -651,7 +651,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
               <p className="text-xs sm:text-sm text-slate-600 font-medium leading-relaxed">
                 {verifiedPayment.entitlementGranted
                   ? 'Your ₹199 purchase was cryptographically verified and your account is upgraded to MakeHabit Premium Lifetime access.'
-                  : 'Your ₹199 test payment signature was cryptographically verified on the Render backend.'}
+                  : 'Your ₹199 simulated payment was confirmed against Razorpay. No real money was charged, and Premium remains inactive in Test Mode.'}
               </p>
             </div>
 
@@ -671,7 +671,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
               <div className="flex justify-between items-center text-slate-600">
                 <span className="font-bold">Server Entitlement:</span>
                 <span className={`font-bold ${verifiedPayment.entitlementGranted ? 'text-[#1E3805]' : 'text-amber-800'}`}>
-                  {verifiedPayment.entitlementGranted ? 'Granted in Firestore ✓' : 'Verified (Pending Service Key)'}
+                  {verifiedPayment.entitlementGranted ? 'Granted in Firestore ✓' : 'Not granted in Test Mode'}
                 </span>
               </div>
             </div>
@@ -683,7 +683,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                 </span>
               ) : (
                 <span>
-                  <strong>Entitlement Notice:</strong> Payment verification passed all cryptographic checks. To allow Render to write server-verified entitlements directly to Firestore, configure <code>FIREBASE_SERVICE_ACCOUNT</code> in Render Environment Variables.
+                  <strong>Test Mode Notice:</strong> This was a simulated transaction only. It does not grant lifetime Premium access. Secure live checkout remains disabled until persistent entitlement activation is configured and tested.
                 </span>
               )}
             </div>

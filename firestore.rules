@@ -1,12 +1,12 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default-deny safety net
+    // Default-deny safety net. Payment receipts are server-only; the Admin SDK
+    // used by the backend bypasses these client rules.
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
@@ -23,42 +23,65 @@ service cloud.firestore {
       return request.resource.data;
     }
 
-    // User profile document (PII isolation: readable & writable only by the account owner)
+    // User profiles are readable/writable only by their owner.
+    // Premium entitlement fields can only be written by trusted server code
+    // (Firebase Admin SDK bypasses these client security rules).
     match /users/{userId} {
       allow get: if isOwner(userId);
-      allow list: if false; // Disallow querying all users
-      allow create: if isOwner(userId) 
-                    && incoming().userId == request.auth.uid;
-      allow update: if isOwner(userId) 
-                    && incoming().userId == request.auth.uid;
+      allow list: if false;
+
+      // Client-created profiles must begin on the free plan and cannot include
+      // server-managed payment/entitlement fields.
+      allow create: if isOwner(userId)
+                    && incoming().userId == request.auth.uid
+                    && incoming().plan == 'free'
+                    && !incoming().keys().hasAny([
+                      'premiumActivatedAt',
+                      'premiumPaymentId',
+                      'paymentStatus',
+                      'isPremium'
+                    ]);
+
+      // Do not let clients change payment entitlements on an existing profile.
+      // Normal profile, preference, and study challenge updates remain allowed.
+      allow update: if isOwner(userId)
+                    && incoming().userId == request.auth.uid
+                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                      'plan',
+                      'premiumActivatedAt',
+                      'premiumPaymentId',
+                      'paymentStatus',
+                      'isPremium'
+                    ]);
+
       allow delete: if isOwner(userId);
 
-      // Habits subcollection strictly scoped to owner
+      // Habits subcollection strictly scoped to owner.
       match /habits/{habitId} {
         allow read: if isOwner(userId);
-        allow create: if isOwner(userId) 
-                      && isValidId(habitId) 
+        allow create: if isOwner(userId)
+                      && isValidId(habitId)
                       && incoming().userId == request.auth.uid
-                      && incoming().anchor is string 
+                      && incoming().anchor is string
                       && incoming().anchor.size() <= 200
-                      && incoming().action is string 
+                      && incoming().action is string
                       && incoming().action.size() <= 200;
-        allow update: if isOwner(userId) 
-                      && isValidId(habitId) 
+        allow update: if isOwner(userId)
+                      && isValidId(habitId)
                       && incoming().userId == request.auth.uid;
         allow delete: if isOwner(userId) && isValidId(habitId);
       }
 
-      // Completions subcollection strictly scoped to owner
+      // Completion records strictly scoped to owner.
       match /completions/{completionId} {
         allow read: if isOwner(userId);
-        allow create: if isOwner(userId) 
-                      && isValidId(completionId) 
+        allow create: if isOwner(userId)
+                      && isValidId(completionId)
                       && incoming().userId == request.auth.uid
-                      && incoming().date is string 
+                      && incoming().date is string
                       && incoming().date.size() <= 10;
-        allow update: if isOwner(userId) 
-                      && isValidId(completionId) 
+        allow update: if isOwner(userId)
+                      && isValidId(completionId)
                       && incoming().userId == request.auth.uid;
         allow delete: if isOwner(userId) && isValidId(completionId);
       }
