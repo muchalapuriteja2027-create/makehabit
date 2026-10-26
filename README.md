@@ -27,7 +27,7 @@ Payment API: [https://makehabit-twbz.onrender.com](https://makehabit-twbz.onrend
 ## Local Setup & Development
 
 ### Prerequisites
-- Node.js 18 or higher
+- Node.js 24 or higher
 - npm or bun
 
 ### 1. Installation
@@ -46,13 +46,15 @@ cp .env.example .env
 
 | Variable | Scope | Description |
 | :--- | :--- | :--- |
-| `VITE_BACKEND_URL` | Client | URL of the Render payment backend (defaults to `https://makehabit-twbz.onrender.com`). |
-| `VITE_RAZORPAY_KEY_ID` | Client | Public Razorpay Key ID (e.g., `rzp_test_...`). Safe for frontend consumption. |
-| `RAZORPAY_KEY_SECRET` | Server | Private Razorpay Secret Key. **Must remain strictly on the server** (e.g., Render Environment Variables). Never commit or expose to frontend. |
-| `VITE_CLARITY_PROJECT_ID` | Build/public | Optional Microsoft Clarity project ID. Empty by default; tracking is not injected until configured. |
-| `VITE_GOOGLE_SITE_VERIFICATION` | Build/public | Optional Google Search Console HTML-tag token for the `https://makehabit.me/` URL-prefix property. Empty by default. |
+| `VITE_BACKEND_URL` | Client | Render payment backend URL (defaults to `https://makehabit-twbz.onrender.com`). |
+| `VITE_RAZORPAY_KEY_ID` | Client | Public Razorpay Key ID. Never use a private secret here. |
+| `RAZORPAY_KEY_SECRET` | Server | Razorpay test secret, stored only on the backend. Never commit it or expose it to the frontend. |
+| `RAZORPAY_MODE` | Server | Keep set to `test` until live payments and entitlement activation are fully verified. |
+| `FIREBASE_SERVICE_ACCOUNT` | Server | Optional service-account JSON required for persistent server-side Premium activation. Store only in Render environment variables. |
+| `FIREBASE_PROJECT_ID` / `FIRESTORE_DATABASE_ID` | Server | Firebase project and named Firestore database identifiers used by the backend. |
+| `VITE_GOOGLE_SITE_VERIFICATION` | Build/public | Optional Search Console HTML-tag token for URL-prefix verification. Not needed when the Domain property is verified through DNS. |
 
-For the deployed site, add `VITE_CLARITY_PROJECT_ID` and `VITE_GOOGLE_SITE_VERIFICATION` under **GitHub → Settings → Secrets and variables → Actions → Variables** (not Secrets; these identifiers appear in the public site HTML). The deployment workflow passes them to Vite at build time. Search Console verification should use the HTML-tag method for the URL-prefix property; the token is inserted into the generated page's `<head>`. Submit the existing sitemap at `https://makehabit.me/sitemap.xml` after verifying ownership. Do not put Razorpay private secrets in Vite variables or the frontend build.
+Microsoft Clarity's public Project ID is currently configured in the GitHub Pages workflow. Search Console ownership and sitemap submission are managed in Search Console. Never add Razorpay private keys or Firebase service-account JSON to GitHub, Vite variables, frontend code, or public logs.
 
 ### 3. Development Commands
 - **Frontend Dev Server**:
@@ -159,14 +161,12 @@ MakeHabit provides a secure integration for a proposed **₹199 one-time Lifetim
 
 To enable automatic server-side Firestore entitlement activation on your Render backend (`https://makehabit-twbz.onrender.com`):
 
-1. Go to the [Firebase Console](https://console.firebase.google.com/) -> Project Settings -> **Service accounts**.
-2. Click **Generate new private key** and download the JSON file.
-3. Open your [Render Dashboard](https://dashboard.render.com/) -> Navigate to your `makehabit-api` web service.
-4. Go to **Environment** -> **Add Environment Variable**.
-5. Add the variable:
-   - **Key**: `FIREBASE_SERVICE_ACCOUNT`
-   - **Value**: Paste the raw JSON string of the downloaded service account key (or a base64-encoded string of it).
-6. Click **Save Changes**. Render will automatically restart the service and initialize the Firebase Admin SDK.
+1. An authorized Firebase project owner should open the [Firebase Console](https://console.firebase.google.com/) -> Project Settings -> **Service accounts** and create an approved server credential if permitted by the project's policy.
+2. In [Render Dashboard](https://dashboard.render.com/), open the MakeHabit backend service -> **Environment**.
+3. Add `FIREBASE_SERVICE_ACCOUNT` with the raw service-account JSON as the value, then save to restart the service.
+4. Confirm `/health` reports `adminConfigured: true` and run a full test before any live payment is enabled.
+
+**Important:** If the project does not permit creating service-account keys, do not upgrade billing or weaken Firestore rules just to bypass that restriction. Ask the project owner/administrator for an approved credential or keep Razorpay in Test Mode. Never share the JSON in chat or commit it to GitHub.
 
 ### Transitioning to Razorpay Live Mode
 
