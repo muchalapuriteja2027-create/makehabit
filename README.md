@@ -176,8 +176,8 @@ The backend exposes `POST https://makehabit-twbz.onrender.com/api/razorpay/webho
 1. Configure a separate webhook secret in Razorpay Dashboard -> Account & Settings -> Webhooks.
 2. Use `https://makehabit-twbz.onrender.com/api/razorpay/webhook` as the endpoint and select relevant events such as `payment.captured`, `payment.failed`, `order.paid`, and refund events.
 3. Set the same secret as `RAZORPAY_WEBHOOK_SECRET` in Render Environment Variables. It is different from `RAZORPAY_KEY_SECRET` and from any credential used by Shipped.money.
-4. The receiver verifies the signature against the original raw request body, deduplicates events, and stores minimal event metadata in the server-only `razorpayWebhookEvents` collection. It never grants Premium directly from a webhook payload.
-5. The receiver returns a retryable error until Firebase Admin can persist the event. Verify the endpoint and delivery in Razorpay's webhook dashboard after deployment.
+4. The receiver verifies the signature against the original raw request body and logs only minimal event metadata to Render logs. It never logs the raw payload and never grants Premium from a webhook payload.
+5. This is a lightweight demo fallback while Firebase Admin access is unavailable; Render logs are not a durable payment ledger. The Razorpay Dashboard remains the source of truth for test-payment records. Check Razorpay webhook deliveries and Render logs after deployment.
 
 **Shipped.money is a separate integration.** This MakeHabit webhook endpoint does not connect Shipped.money by itself. Complete the Razorpay source connection inside Shipped.money using an authorized credential in that dashboard, and do not paste any private credential into chat or commit it to GitHub.
 
