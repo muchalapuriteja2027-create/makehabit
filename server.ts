@@ -546,13 +546,14 @@ app.post('/api/razorpay/verify-payment', async (req: Request, res: Response) => 
 });
 
 /**
- * Razorpay webhook receiver for server-side event tracking.
+ * Razorpay webhook receiver for short demo deployments.
  *
- * Configure the same webhook secret in the Razorpay Dashboard and Render's
- * RAZORPAY_WEBHOOK_SECRET environment variable. This endpoint records only
- * minimal payment metadata; it does not trust unsigned events or grant Premium
- * directly. Razorpay's signed payment API verification remains the entitlement
- * authority. The event log is server-only under the default-deny Firestore rules.
+ * Requires the same RAZORPAY_WEBHOOK_SECRET configured in the Razorpay
+ * Dashboard. It verifies Razorpay's signature against the original raw body,
+ * then logs only minimal metadata to Render logs so event delivery can be
+ * demonstrated without Firebase Admin. Razorpay's Dashboard remains the
+ * transaction record of truth; Render logs are not a durable payment ledger.
+ * This endpoint NEVER grants Premium.
  */
 app.post('/api/razorpay/webhook', async (req: Request, res: Response) => {
   try {
@@ -592,28 +593,14 @@ app.post('/api/razorpay/webhook', async (req: Request, res: Response) => {
       return;
     }
 
-    const { adminDb } = initFirebaseAdmin();
-    if (!adminDb) {
-      res.status(503).json({
-        success: false,
-        error: 'Verified webhook cannot be persisted yet because Firebase Admin is not configured.',
-      });
-      return;
-    }
-
-    const suppliedEventId = req.header('x-razorpay-event-id') || '';
-    const eventDocumentId = /^[A-Za-z0-9_-]{1,128}$/.test(suppliedEventId)
-      ? suppliedEventId
-      : crypto.createHash('sha256').update(rawBody).digest('hex');
-
+    const suppliedEventId = req.header('x-razorpay-event-id') || null;
     const payload = body.payload || {};
     const payment = payload.payment?.entity || payload['payment.captured']?.entity || payload['payment.failed']?.entity;
     const order = payload.order?.entity || payload['order.paid']?.entity;
     const refund = payload.refund?.entity || payload['refund.created']?.entity || payload['refund.processed']?.entity;
 
     const eventRecord = {
-      eventId: eventDocumentId,
-      providerEventId: suppliedEventId || null,
+      providerEventId: suppliedEventId,
       eventType: body.event.trim().slice(0, 120),
       signatureVerified: true,
       receivedAt: new Date().toISOString(),
@@ -628,24 +615,23 @@ app.post('/api/razorpay/webhook', async (req: Request, res: Response) => {
           : null,
       paymentStatus: typeof payment?.status === 'string' ? payment.status : null,
       amountPaise:
-      typeof payment?.amount === 'number' && Number.isSafeInteger(payment.amount)
-        ? payment.amount
-        : null,
+        typeof payment?.amount === 'number' && Number.isSafeInteger(payment.amount)
+          ? payment.amount
+          : null,
       currency: typeof payment?.currency === 'string' ? payment.currency : null,
       refundId: typeof refund?.id === 'string' ? refund.id : null,
       refundStatus: typeof refund?.status === 'string' ? refund.status : null,
-      processed: true,
     };
 
-    const eventRef = adminDb.doc(`razorpayWebhookEvents/${eventDocumentId}`);
-    const wasDuplicate = await adminDb.runTransaction(async (transaction: Transaction) => {
-      const existing = await transaction.get(eventRef);
-      if (existing.exists) return true;
-      transaction.create(eventRef, eventRecord);
-      return false;
+    // Do not log the raw body, contact details, or secret. This fallback is
+    // intentionally log-only; the provider Dashboard is the durable record.
+    console.info('[razorpay-webhook] verified event received', eventRecord);
+    res.status(200).json({
+      success: true,
+      received: true,
+      tracking: 'render-logs-only',
+      premiumGranted: false,
     });
-
-    res.status(200).json({ success: true, duplicate: wasDuplicate });
   } catch (error: unknown) {
     console.error('Razorpay webhook processing failed:', error);
     res.status(500).json({ success: false, error: 'Webhook processing failed.' });
