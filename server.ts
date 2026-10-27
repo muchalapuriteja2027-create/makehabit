@@ -190,6 +190,8 @@ app.get('/api/razorpay/status', (_req: Request, res: Response) => {
     keyId: keyId || null,
     keyIdPreview: keyId ? `${keyId.substring(0, 8)}...` : null,
     adminConfigured: Boolean(adminApp && adminDb),
+    webhookConfigured: Boolean(process.env.RAZORPAY_WEBHOOK_SECRET),
+    webhookTrackingMode: 'render-logs-only',
   });
 });
 
